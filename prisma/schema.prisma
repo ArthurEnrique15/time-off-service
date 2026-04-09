@@ -29,14 +29,15 @@ model Balance {
 }
 
 model TimeOffRequest {
-  id          String   @id @default(uuid())
-  employeeId  String
-  locationId  String
-  startDate   DateTime
-  endDate     DateTime
-  status      String   @default("PENDING")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(uuid())
+  employeeId   String
+  locationId   String
+  startDate    DateTime
+  endDate      DateTime
+  status       String   @default("PENDING")
+  hcmRequestId String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   auditEntries BalanceAuditEntry[]
 
