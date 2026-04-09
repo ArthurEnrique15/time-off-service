@@ -182,6 +182,38 @@ describe('TimeOffRequestService', () => {
     });
   });
 
+  describe('create — in-transaction safety checks', () => {
+    it('throws NotFoundException when balance disappears inside the transaction', async () => {
+      mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(mockBalance);
+      mockHcmClient.submitTimeOff.mockResolvedValue(Success.create({ id: 'hcm-req-1', status: 'APPROVED' }));
+
+      mockPrismaService.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => {
+        const tx = {
+          balance: { findUnique: jest.fn().mockResolvedValue(null) },
+          timeOffRequest: { create: jest.fn() },
+        };
+        return cb(tx);
+      });
+
+      await expect(service.create(validDto)).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws InsufficientBalanceError when balance becomes insufficient inside the transaction', async () => {
+      mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(mockBalance);
+      mockHcmClient.submitTimeOff.mockResolvedValue(Success.create({ id: 'hcm-req-1', status: 'APPROVED' }));
+
+      mockPrismaService.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => {
+        const tx = {
+          balance: { findUnique: jest.fn().mockResolvedValue({ ...mockBalance, availableDays: 1 }) },
+          timeOffRequest: { create: jest.fn() },
+        };
+        return cb(tx);
+      });
+
+      await expect(service.create(validDto)).rejects.toThrow(InsufficientBalanceError);
+    });
+  });
+
   describe('create — HCM error mapping', () => {
     it('throws BadRequestException when HCM returns INSUFFICIENT_BALANCE', async () => {
       mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(mockBalance);

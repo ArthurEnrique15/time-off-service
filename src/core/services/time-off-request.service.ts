@@ -53,7 +53,7 @@ export class TimeOffRequestService {
       this.throwHcmError(hcmResult.value);
     }
 
-    const hcmRequestId = hcmResult.isSuccess() ? hcmResult.value.id : undefined;
+    const hcmRequestId = hcmResult.value.id;
 
     let createdRequest!: TimeOffRequest;
 
