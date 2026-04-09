@@ -129,10 +129,11 @@ describe('TimeOffRequestService', () => {
       (prismaService.timeOffRequest.findMany as jest.Mock).mockResolvedValue([]);
       (prismaService.timeOffRequest.count as jest.Mock).mockResolvedValue(0);
 
-      await service.findAllByEmployee('emp-1', { page: 1, limit: 999 });
+      const result = await service.findAllByEmployee('emp-1', { page: 1, limit: 999 });
 
       const call = (prismaService.timeOffRequest.findMany as jest.Mock).mock.calls[0][0];
       expect(call.take).toBe(100);
+      expect(result.pagination.limit).toBe(100);
     });
 
     it('clamps page to minimum 1', async () => {
@@ -140,10 +141,11 @@ describe('TimeOffRequestService', () => {
       (prismaService.timeOffRequest.findMany as jest.Mock).mockResolvedValue([]);
       (prismaService.timeOffRequest.count as jest.Mock).mockResolvedValue(0);
 
-      await service.findAllByEmployee('emp-1', { page: 0, limit: 20 });
+      const result = await service.findAllByEmployee('emp-1', { page: 0, limit: 20 });
 
       const call = (prismaService.timeOffRequest.findMany as jest.Mock).mock.calls[0][0];
       expect(call.skip).toBe(0);
+      expect(result.pagination.page).toBe(1);
     });
 
     it('returns totalPages: 0 when total is 0', async () => {

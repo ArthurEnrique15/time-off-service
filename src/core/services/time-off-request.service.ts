@@ -35,7 +35,7 @@ export class TimeOffRequestService {
     const limit = Math.min(Math.max(options.limit, 1), MAX_LIMIT);
     const skip = (page - 1) * limit;
 
-    const where: { employeeId: string; status?: string } = { employeeId };
+    const where: { employeeId: string; status?: TimeOffRequestStatus } = { employeeId };
 
     if (options.status) {
       where.status = options.status;
