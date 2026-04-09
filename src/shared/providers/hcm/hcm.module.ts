@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 
-import { CustomHttpModule } from '@shared/core/custom-http';
 import { EnvConfigModule } from '@shared/config/env';
+import { CustomHttpModule } from '@shared/core/custom-http';
 
 import { HcmClient } from './hcm.client';
 

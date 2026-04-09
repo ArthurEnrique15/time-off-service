@@ -1,7 +1,7 @@
 import type { AxiosResponse } from 'axios';
 
-import type { CustomHttpService } from '@shared/core/custom-http';
 import type { EnvConfigService } from '@shared/config/env';
+import type { CustomHttpService } from '@shared/core/custom-http';
 
 import { HcmClient } from './hcm.client';
 
@@ -24,16 +24,20 @@ describe('HcmClient', () => {
     return { client, customHttpService, envConfigService };
   };
 
-  const mockResponse = (overrides: Partial<AxiosResponse>): AxiosResponse =>
-    ({ status: 200, data: {}, statusText: 'OK', headers: {}, config: {} as any, ...overrides });
+  const mockResponse = (overrides: Partial<AxiosResponse>): AxiosResponse => ({
+    status: 200,
+    data: {},
+    statusText: 'OK',
+    headers: {},
+    config: {} as any,
+    ...overrides,
+  });
 
   describe('checkConnection', () => {
     it('returns true when the health endpoint responds with status 200', async () => {
       const { client, customHttpService } = createClient();
 
-      (customHttpService.request as jest.Mock).mockResolvedValue(
-        mockResponse({ status: 200, data: { status: 'ok' } }),
-      );
+      (customHttpService.request as jest.Mock).mockResolvedValue(mockResponse({ status: 200, data: { status: 'ok' } }));
 
       await expect(client.checkConnection()).resolves.toBe(true);
       expect(customHttpService.request).toHaveBeenCalledWith({
@@ -46,9 +50,7 @@ describe('HcmClient', () => {
     it('returns false when the health endpoint responds with a non-200 status', async () => {
       const { client, customHttpService } = createClient();
 
-      (customHttpService.request as jest.Mock).mockResolvedValue(
-        mockResponse({ status: 503 }),
-      );
+      (customHttpService.request as jest.Mock).mockResolvedValue(mockResponse({ status: 503 }));
 
       await expect(client.checkConnection()).resolves.toBe(false);
     });
@@ -69,9 +71,7 @@ describe('HcmClient', () => {
       const { client, customHttpService } = createClient();
       const balanceData = { employeeId: 'emp-1', locationId: 'loc-1', availableDays: 15 };
 
-      (customHttpService.request as jest.Mock).mockResolvedValue(
-        mockResponse({ status: 200, data: balanceData }),
-      );
+      (customHttpService.request as jest.Mock).mockResolvedValue(mockResponse({ status: 200, data: balanceData }));
 
       const result = await client.getBalance('emp-1', 'loc-1');
 
@@ -104,6 +104,7 @@ describe('HcmClient', () => {
 
       if (result.isFailure()) {
         expect(result.value.code).toBe('INVALID_DIMENSIONS');
+        expect(result.value.message).toBe('Unknown combination');
         expect(result.value.statusCode).toBe(404);
       }
     });
@@ -121,7 +122,24 @@ describe('HcmClient', () => {
 
       if (result.isFailure()) {
         expect(result.value.code).toBe('UNKNOWN');
+        expect(result.value.message).toBe('HCM responded with status 500');
         expect(result.value.statusCode).toBe(500);
+      }
+    });
+
+    it('returns Failure with UNKNOWN when HCM responds with null data', async () => {
+      const { client, customHttpService } = createClient();
+
+      (customHttpService.request as jest.Mock).mockResolvedValue(mockResponse({ status: 502, data: null }));
+
+      const result = await client.getBalance('emp-1', 'loc-1');
+
+      expect(result.isFailure()).toBe(true);
+
+      if (result.isFailure()) {
+        expect(result.value.code).toBe('UNKNOWN');
+        expect(result.value.message).toBe('HCM responded with status 502');
+        expect(result.value.statusCode).toBe(502);
       }
     });
   });
@@ -138,9 +156,7 @@ describe('HcmClient', () => {
       const { client, customHttpService } = createClient();
       const responseData = { id: 'hcm-req-1', status: 'APPROVED' };
 
-      (customHttpService.request as jest.Mock).mockResolvedValue(
-        mockResponse({ status: 201, data: responseData }),
-      );
+      (customHttpService.request as jest.Mock).mockResolvedValue(mockResponse({ status: 201, data: responseData }));
 
       const result = await client.submitTimeOff(submitRequest);
 
@@ -200,9 +216,7 @@ describe('HcmClient', () => {
     it('returns Failure with UNKNOWN when HCM responds with an unexpected status', async () => {
       const { client, customHttpService } = createClient();
 
-      (customHttpService.request as jest.Mock).mockResolvedValue(
-        mockResponse({ status: 500, data: {} }),
-      );
+      (customHttpService.request as jest.Mock).mockResolvedValue(mockResponse({ status: 500, data: {} }));
 
       const result = await client.submitTimeOff(submitRequest);
 
@@ -218,9 +232,7 @@ describe('HcmClient', () => {
     it('returns Success with void when HCM responds with 204', async () => {
       const { client, customHttpService } = createClient();
 
-      (customHttpService.request as jest.Mock).mockResolvedValue(
-        mockResponse({ status: 204, data: null }),
-      );
+      (customHttpService.request as jest.Mock).mockResolvedValue(mockResponse({ status: 204, data: null }));
 
       const result = await client.cancelTimeOff('hcm-req-1');
 
@@ -255,9 +267,7 @@ describe('HcmClient', () => {
     it('returns Failure with UNKNOWN when HCM responds with an unexpected status', async () => {
       const { client, customHttpService } = createClient();
 
-      (customHttpService.request as jest.Mock).mockResolvedValue(
-        mockResponse({ status: 500, data: {} }),
-      );
+      (customHttpService.request as jest.Mock).mockResolvedValue(mockResponse({ status: 500, data: {} }));
 
       const result = await client.cancelTimeOff('hcm-req-1');
 

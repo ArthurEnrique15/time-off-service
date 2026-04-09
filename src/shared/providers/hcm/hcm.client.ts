@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { HttpStatus } from '@nestjs/common';
 
-import { Failure, Success } from '@shared/core/either';
-import { CustomHttpService } from '@shared/core/custom-http';
 import { EnvConfigService } from '@shared/config/env';
+import { CustomHttpService } from '@shared/core/custom-http';
+import { Failure, Success } from '@shared/core/either';
 
 import type {
   CancelTimeOffResult,
@@ -83,11 +83,7 @@ export class HcmClient {
   }
 
   private toHcmError(statusCode: number, data: any): HcmError {
-    const knownCodes: HcmErrorCode[] = [
-      'INVALID_DIMENSIONS',
-      'INSUFFICIENT_BALANCE',
-      'NOT_FOUND',
-    ];
+    const knownCodes: HcmErrorCode[] = ['INVALID_DIMENSIONS', 'INSUFFICIENT_BALANCE', 'NOT_FOUND'];
 
     const code: HcmErrorCode = knownCodes.includes(data?.error) ? data.error : 'UNKNOWN';
     const message: string = data?.message ?? `HCM responded with status ${statusCode}`;

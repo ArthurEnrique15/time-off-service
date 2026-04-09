@@ -17,7 +17,13 @@ describe('HcmClient integration', () => {
         { employeeId: 'emp-2', locationId: 'loc-2', availableDays: 1 },
       ],
       requests: [
-        { id: 'existing-req-1', employeeId: 'emp-1', locationId: 'loc-1', startDate: '2026-03-01', endDate: '2026-03-02' },
+        {
+          id: 'existing-req-1',
+          employeeId: 'emp-1',
+          locationId: 'loc-1',
+          startDate: '2026-03-01',
+          endDate: '2026-03-02',
+        },
       ],
     });
 

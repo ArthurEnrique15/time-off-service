@@ -9,7 +9,11 @@ const config: Config = {
   transform: {
     '^.+\\.(t|j)sx?$': '@swc/jest',
   },
-  collectCoverageFrom: ['<rootDir>/src/**/*.ts', '!<rootDir>/src/**/*.module.ts'],
+  collectCoverageFrom: [
+    '<rootDir>/src/**/*.ts',
+    '!<rootDir>/src/**/*.module.ts',
+    '!<rootDir>/src/**/*.types.ts',
+  ],
   coveragePathIgnorePatterns: ['node_modules', 'dist'],
   coverageReporters: ['text-summary', 'lcov', 'json-summary'],
   coverageDirectory: 'coverage',
