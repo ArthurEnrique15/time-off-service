@@ -1,0 +1,14 @@
+// @ts-check
+/** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */
+const config = {
+  _comment:
+    "This config mirrors the GCB service defaults. Expand the 'mutate' list feature-by-feature as the codebase grows.",
+  packageManager: 'npm',
+  reporters: ['html', 'clear-text', 'progress'],
+  testRunner: 'jest',
+  coverageAnalysis: 'perTest',
+  mutate: ['src/shared/config/env/env.config.ts'],
+  thresholds: { high: 100, low: 80, break: 80 },
+};
+
+export default config;

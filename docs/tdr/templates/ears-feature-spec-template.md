@@ -1,0 +1,13 @@
+# Feature Specification Template
+
+## Context
+- Describe the user and system context briefly.
+
+## EARS Requirements
+- The system shall ...
+- When <trigger>, the system shall ...
+- While <state>, the system shall ...
+- If <precondition>, then the system shall ...
+
+## Out Of Scope
+- List explicit exclusions.
