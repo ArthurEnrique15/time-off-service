@@ -7,7 +7,7 @@ const config = {
   reporters: ['html', 'clear-text', 'progress'],
   testRunner: 'jest',
   coverageAnalysis: 'perTest',
-  mutate: ['src/shared/config/env/env.config.ts'],
+  mutate: ['src/shared/config/env/env.config.ts', 'src/core/services/balance.service.ts'],
   thresholds: { high: 100, low: 80, break: 80 },
 };
 
