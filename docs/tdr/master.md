@@ -28,6 +28,8 @@
 - F1 domain models plan: [f1-domain-models-plan.md](./feature-plans/f1-domain-models-plan.md)
 - F2 balance management spec: [f2-balance-management-spec.md](./specs/f2-balance-management-spec.md)
 - F2 balance management plan: [f2-balance-management-plan.md](./feature-plans/f2-balance-management-plan.md)
+- F3 balance audit trail spec: [f3-balance-audit-trail-spec.md](./specs/f3-balance-audit-trail-spec.md)
+- F3 balance audit trail plan: [f3-balance-audit-trail-plan.md](./feature-plans/f3-balance-audit-trail-plan.md)
 
 ## Pending Product Definitions
 - Canonical terminology for balances, requests, adjustments, and sync events
@@ -66,3 +68,17 @@ Resolved during F2 planning. These are authoritative for all features consuming 
 | List empty result | 200 with empty array | Standard REST — empty collection is not an error |
 | employeeId query param | Required (400 if missing) | Listing all balances globally is not a valid use case |
 | Error class for insufficient balance | InsufficientBalanceError extends BadRequestException | Domain-specific, maps to 400 HTTP status automatically |
+
+## F3 Design Decisions
+
+Resolved during F3 brainstorming. These are authoritative for the audit trail feature and downstream consumers.
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Audit write surface | Internal service method only | No external POST; downstream features inject the service |
+| History pagination | Offset/limit (`page`, `limit`) | Simple, matches typical REST APIs |
+| History default sort | Descending by `createdAt` | Most-recent-first is the natural audit view |
+| History reason filter | Optional `?reason=` query param | Allows callers to narrow by change type |
+| Balance not found | HTTP 404 | Clear signal vs. ambiguous empty array |
+| Reason constant location | Exported from the service file | Single source of truth; extract later if needed |
+| Paginated response shape | `{ data, pagination: { page, limit, total, totalPages } }` | Standard offset/limit envelope |
