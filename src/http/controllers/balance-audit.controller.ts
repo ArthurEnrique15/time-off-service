@@ -1,10 +1,6 @@
 import { BadRequestException, Controller, Get, Param, Query } from '@nestjs/common';
 
-import {
-  AUDIT_REASONS,
-  BalanceAuditService,
-  type PaginatedAuditHistory,
-} from '@core/services/balance-audit.service';
+import { AUDIT_REASONS, BalanceAuditService, type PaginatedAuditHistory } from '@core/services/balance-audit.service';
 
 @Controller('balances')
 export class BalanceAuditController {

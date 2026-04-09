@@ -69,9 +69,9 @@ describe('BalanceAuditController', () => {
   it('throws BadRequestException for invalid reason query param', async () => {
     const { controller } = createController();
 
-    await expect(
-      controller.getHistory('emp-1', 'loc-1', undefined, undefined, 'INVALID'),
-    ).rejects.toThrow('Invalid audit reason: INVALID');
+    await expect(controller.getHistory('emp-1', 'loc-1', undefined, undefined, 'INVALID')).rejects.toThrow(
+      'Invalid audit reason: INVALID',
+    );
   });
 
   it('returns the service response directly', async () => {

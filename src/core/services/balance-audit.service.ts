@@ -68,9 +68,7 @@ export class BalanceAuditService {
     });
 
     if (!balance) {
-      throw new NotFoundException(
-        `Balance not found for employee ${employeeId} at location ${locationId}`,
-      );
+      throw new NotFoundException(`Balance not found for employee ${employeeId} at location ${locationId}`);
     }
 
     const page = options?.page ?? DEFAULT_PAGE;

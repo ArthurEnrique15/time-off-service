@@ -1,6 +1,5 @@
-import { execSync } from 'node:child_process';
-
 import type { INestApplication } from '@nestjs/common';
+import { execSync } from 'node:child_process';
 import request from 'supertest';
 
 import type { PrismaService } from '../../src/prisma/prisma.service';
@@ -63,9 +62,7 @@ describe('Balance audit trail integration', () => {
       data: { employeeId: 'emp-empty', locationId: 'loc-empty', availableDays: 10 },
     });
 
-    const response = await request(app.getHttpServer())
-      .get('/balances/emp-empty/loc-empty/history')
-      .expect(200);
+    const response = await request(app.getHttpServer()).get('/balances/emp-empty/loc-empty/history').expect(200);
 
     expect(response.body.data).toEqual([]);
     expect(response.body.pagination).toEqual({
@@ -102,9 +99,7 @@ describe('Balance audit trail integration', () => {
       },
     });
 
-    const response = await request(app.getHttpServer())
-      .get('/balances/emp-sort/loc-sort/history')
-      .expect(200);
+    const response = await request(app.getHttpServer()).get('/balances/emp-sort/loc-sort/history').expect(200);
 
     expect(response.body.data).toHaveLength(2);
     expect(response.body.data[0].reason).toBe('RESERVATION_RELEASE');

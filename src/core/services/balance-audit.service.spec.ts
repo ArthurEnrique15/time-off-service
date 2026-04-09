@@ -44,6 +44,7 @@ describe('BalanceAuditService', () => {
         delta: -3,
         reason: 'RESERVATION',
         requestId: 'request-1',
+        reference: 'ref-1',
         actorId: 'actor-1',
       });
 
@@ -54,6 +55,7 @@ describe('BalanceAuditService', () => {
           delta: -3,
           reason: 'RESERVATION',
           requestId: 'request-1',
+          reference: 'ref-1',
           actorId: 'actor-1',
         },
       });
@@ -104,9 +106,9 @@ describe('BalanceAuditService', () => {
       const findUniqueMock = prismaService.balance.findUnique as jest.Mock;
       findUniqueMock.mockResolvedValue(null);
 
-      await expect(
-        service.getHistory('emp-1', 'loc-1'),
-      ).rejects.toThrow('Balance not found for employee emp-1 at location loc-1');
+      await expect(service.getHistory('emp-1', 'loc-1')).rejects.toThrow(
+        'Balance not found for employee emp-1 at location loc-1',
+      );
     });
 
     it('returns paginated entries sorted descending by createdAt', async () => {
@@ -153,9 +155,7 @@ describe('BalanceAuditService', () => {
 
       await service.getHistory('emp-1', 'loc-1');
 
-      expect(findManyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ skip: 0, take: 20 }),
-      );
+      expect(findManyMock).toHaveBeenCalledWith(expect.objectContaining({ skip: 0, take: 20 }));
     });
 
     it('applies reason filter when provided', async () => {
@@ -192,9 +192,7 @@ describe('BalanceAuditService', () => {
 
       const result = await service.getHistory('emp-1', 'loc-1', { page: 3, limit: 10 });
 
-      expect(findManyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ skip: 20, take: 10 }),
-      );
+      expect(findManyMock).toHaveBeenCalledWith(expect.objectContaining({ skip: 20, take: 10 }));
       expect(result.pagination).toEqual({ page: 3, limit: 10, total: 50, totalPages: 5 });
     });
 
@@ -211,9 +209,7 @@ describe('BalanceAuditService', () => {
 
       await service.getHistory('emp-1', 'loc-1', { limit: 500 });
 
-      expect(findManyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ take: 100 }),
-      );
+      expect(findManyMock).toHaveBeenCalledWith(expect.objectContaining({ take: 100 }));
     });
   });
 
