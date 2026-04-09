@@ -61,7 +61,7 @@ export class BalanceAuditService {
   async getHistory(
     employeeId: string,
     locationId: string,
-    options?: { page?: number; limit?: number; reason?: string },
+    options?: { page?: number; limit?: number; reason?: AuditReason },
   ): Promise<PaginatedAuditHistory> {
     const balance = await this.prismaService.balance.findUnique({
       where: { employeeId_locationId: { employeeId, locationId } },
@@ -71,8 +71,8 @@ export class BalanceAuditService {
       throw new NotFoundException(`Balance not found for employee ${employeeId} at location ${locationId}`);
     }
 
-    const page = options?.page ?? DEFAULT_PAGE;
-    const limit = Math.min(options?.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
+    const page = Math.max(options?.page ?? DEFAULT_PAGE, 1);
+    const limit = Math.min(Math.max(options?.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
     const skip = (page - 1) * limit;
 
     const where: { balanceId: string; reason?: string } = { balanceId: balance.id };

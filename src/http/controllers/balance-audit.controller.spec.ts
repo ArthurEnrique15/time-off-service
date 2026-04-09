@@ -74,6 +74,30 @@ describe('BalanceAuditController', () => {
     );
   });
 
+  it('uses default page when page is NaN', async () => {
+    const { controller, balanceAuditService } = createController();
+
+    await controller.getHistory('emp-1', 'loc-1', 'abc', undefined, undefined);
+
+    expect(balanceAuditService.getHistory).toHaveBeenCalledWith('emp-1', 'loc-1', {
+      page: 1,
+      limit: 20,
+      reason: undefined,
+    });
+  });
+
+  it('uses default limit when limit is NaN', async () => {
+    const { controller, balanceAuditService } = createController();
+
+    await controller.getHistory('emp-1', 'loc-1', undefined, 'xyz', undefined);
+
+    expect(balanceAuditService.getHistory).toHaveBeenCalledWith('emp-1', 'loc-1', {
+      page: 1,
+      limit: 20,
+      reason: undefined,
+    });
+  });
+
   it('returns the service response directly', async () => {
     const { controller } = createController();
 

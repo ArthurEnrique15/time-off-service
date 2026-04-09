@@ -18,10 +18,13 @@ export class BalanceAuditController {
       throw new BadRequestException(`Invalid audit reason: ${reason}`);
     }
 
+    const parsedPage = page ? parseInt(page, 10) : undefined;
+    const parsedLimit = limit ? parseInt(limit, 10) : undefined;
+
     return this.balanceAuditService.getHistory(employeeId, locationId, {
-      page: page ? parseInt(page, 10) : 1,
-      limit: limit ? parseInt(limit, 10) : 20,
-      reason,
+      page: Number.isFinite(parsedPage) ? parsedPage : 1,
+      limit: Number.isFinite(parsedLimit) ? parsedLimit : 20,
+      reason: reason as any,
     });
   }
 }

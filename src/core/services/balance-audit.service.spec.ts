@@ -78,13 +78,15 @@ describe('BalanceAuditService', () => {
       });
 
       expect(result).toEqual(entryWithoutOptionals);
-      expect(createMock).toHaveBeenCalledWith({
-        data: {
-          balanceId: 'balance-1',
-          delta: 5,
-          reason: 'BATCH_SYNC',
-        },
+      const callData = createMock.mock.calls[0][0].data;
+      expect(callData).toEqual({
+        balanceId: 'balance-1',
+        delta: 5,
+        reason: 'BATCH_SYNC',
       });
+      expect(callData).not.toHaveProperty('requestId');
+      expect(callData).not.toHaveProperty('reference');
+      expect(callData).not.toHaveProperty('actorId');
     });
 
     it('rejects an invalid reason value', async () => {
@@ -109,6 +111,10 @@ describe('BalanceAuditService', () => {
       await expect(service.getHistory('emp-1', 'loc-1')).rejects.toThrow(
         'Balance not found for employee emp-1 at location loc-1',
       );
+
+      expect(findUniqueMock).toHaveBeenCalledWith({
+        where: { employeeId_locationId: { employeeId: 'emp-1', locationId: 'loc-1' } },
+      });
     });
 
     it('returns paginated entries sorted descending by createdAt', async () => {
@@ -140,6 +146,8 @@ describe('BalanceAuditService', () => {
         skip: 0,
         take: 20,
       });
+
+      expect(countMock).toHaveBeenCalledWith({ where: { balanceId: 'balance-1' } });
     });
 
     it('uses defaults page=1, limit=20 when not specified', async () => {
@@ -171,12 +179,16 @@ describe('BalanceAuditService', () => {
 
       await service.getHistory('emp-1', 'loc-1', { reason: 'RESERVATION' });
 
+      const expectedWhere = { balanceId: 'balance-1', reason: 'RESERVATION' };
+
       expect(findManyMock).toHaveBeenCalledWith({
-        where: { balanceId: 'balance-1', reason: 'RESERVATION' },
+        where: expectedWhere,
         orderBy: { createdAt: 'desc' },
         skip: 0,
         take: 20,
       });
+
+      expect(countMock).toHaveBeenCalledWith({ where: expectedWhere });
     });
 
     it('paginates with custom page and limit', async () => {
@@ -194,6 +206,74 @@ describe('BalanceAuditService', () => {
 
       expect(findManyMock).toHaveBeenCalledWith(expect.objectContaining({ skip: 20, take: 10 }));
       expect(result.pagination).toEqual({ page: 3, limit: 10, total: 50, totalPages: 5 });
+    });
+
+    it('clamps page to minimum 1 when page is 0', async () => {
+      const { service, prismaService } = createService();
+      const findUniqueMock = prismaService.balance.findUnique as jest.Mock;
+      findUniqueMock.mockResolvedValue({ id: 'balance-1' });
+
+      const findManyMock = prismaService.balanceAuditEntry.findMany as jest.Mock;
+      findManyMock.mockResolvedValue([]);
+
+      const countMock = prismaService.balanceAuditEntry.count as jest.Mock;
+      countMock.mockResolvedValue(0);
+
+      const result = await service.getHistory('emp-1', 'loc-1', { page: 0 });
+
+      expect(findManyMock).toHaveBeenCalledWith(expect.objectContaining({ skip: 0 }));
+      expect(result.pagination.page).toBe(1);
+    });
+
+    it('clamps page to minimum 1 when page is negative', async () => {
+      const { service, prismaService } = createService();
+      const findUniqueMock = prismaService.balance.findUnique as jest.Mock;
+      findUniqueMock.mockResolvedValue({ id: 'balance-1' });
+
+      const findManyMock = prismaService.balanceAuditEntry.findMany as jest.Mock;
+      findManyMock.mockResolvedValue([]);
+
+      const countMock = prismaService.balanceAuditEntry.count as jest.Mock;
+      countMock.mockResolvedValue(0);
+
+      const result = await service.getHistory('emp-1', 'loc-1', { page: -5 });
+
+      expect(findManyMock).toHaveBeenCalledWith(expect.objectContaining({ skip: 0 }));
+      expect(result.pagination.page).toBe(1);
+    });
+
+    it('clamps limit to minimum 1 when limit is 0', async () => {
+      const { service, prismaService } = createService();
+      const findUniqueMock = prismaService.balance.findUnique as jest.Mock;
+      findUniqueMock.mockResolvedValue({ id: 'balance-1' });
+
+      const findManyMock = prismaService.balanceAuditEntry.findMany as jest.Mock;
+      findManyMock.mockResolvedValue([]);
+
+      const countMock = prismaService.balanceAuditEntry.count as jest.Mock;
+      countMock.mockResolvedValue(0);
+
+      const result = await service.getHistory('emp-1', 'loc-1', { limit: 0 });
+
+      expect(findManyMock).toHaveBeenCalledWith(expect.objectContaining({ take: 1 }));
+      expect(result.pagination.limit).toBe(1);
+    });
+
+    it('clamps limit to minimum 1 when limit is negative', async () => {
+      const { service, prismaService } = createService();
+      const findUniqueMock = prismaService.balance.findUnique as jest.Mock;
+      findUniqueMock.mockResolvedValue({ id: 'balance-1' });
+
+      const findManyMock = prismaService.balanceAuditEntry.findMany as jest.Mock;
+      findManyMock.mockResolvedValue([]);
+
+      const countMock = prismaService.balanceAuditEntry.count as jest.Mock;
+      countMock.mockResolvedValue(0);
+
+      const result = await service.getHistory('emp-1', 'loc-1', { limit: -10 });
+
+      expect(findManyMock).toHaveBeenCalledWith(expect.objectContaining({ take: 1 }));
+      expect(result.pagination.limit).toBe(1);
     });
 
     it('caps limit at 100', async () => {

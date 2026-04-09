@@ -78,26 +78,25 @@ describe('Balance audit trail integration', () => {
       data: { employeeId: 'emp-sort', locationId: 'loc-sort', availableDays: 20 },
     });
 
-    await prisma.balanceAuditEntry.create({
-      data: {
-        balanceId: balance.id,
-        delta: -3,
-        reason: 'RESERVATION',
-        actorId: 'actor-1',
-      },
-    });
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO BalanceAuditEntry (id, balanceId, delta, reason, actorId, createdAt) VALUES (?, ?, ?, ?, ?, ?)`,
+      'sort-entry-1',
+      balance.id,
+      -3,
+      'RESERVATION',
+      'actor-1',
+      '2026-01-01T10:00:00.000Z',
+    );
 
-    // Small delay to ensure distinct timestamps
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
-    await prisma.balanceAuditEntry.create({
-      data: {
-        balanceId: balance.id,
-        delta: 3,
-        reason: 'RESERVATION_RELEASE',
-        actorId: 'actor-1',
-      },
-    });
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO BalanceAuditEntry (id, balanceId, delta, reason, actorId, createdAt) VALUES (?, ?, ?, ?, ?, ?)`,
+      'sort-entry-2',
+      balance.id,
+      3,
+      'RESERVATION_RELEASE',
+      'actor-1',
+      '2026-01-02T10:00:00.000Z',
+    );
 
     const response = await request(app.getHttpServer()).get('/balances/emp-sort/loc-sort/history').expect(200);
 
@@ -178,5 +177,25 @@ describe('Balance audit trail integration', () => {
       .expect(400);
 
     expect(response.body.message).toContain('Invalid audit reason');
+  });
+
+  it('clamps page=0 to page=1 instead of returning 500', async () => {
+    await prisma.balance.create({
+      data: { employeeId: 'emp-clamp', locationId: 'loc-clamp', availableDays: 10 },
+    });
+
+    const response = await request(app.getHttpServer()).get('/balances/emp-clamp/loc-clamp/history?page=0').expect(200);
+
+    expect(response.body.pagination.page).toBe(1);
+  });
+
+  it('defaults page when query param is non-numeric', async () => {
+    await prisma.balance.create({
+      data: { employeeId: 'emp-nan', locationId: 'loc-nan', availableDays: 10 },
+    });
+
+    const response = await request(app.getHttpServer()).get('/balances/emp-nan/loc-nan/history?page=abc').expect(200);
+
+    expect(response.body.pagination.page).toBe(1);
   });
 });
