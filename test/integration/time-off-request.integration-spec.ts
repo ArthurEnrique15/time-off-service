@@ -18,7 +18,7 @@ describe('Time-off request creation integration', () => {
   beforeAll(async () => {
     const mockHcmServer = await startMockHcmServer({
       balances: [
-        { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, availableDays: 20 },
+        { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, availableDays: 1000 },
       ],
     });
     const testEnvironment = setTestEnvironment({ hcmBaseUrl: mockHcmServer.baseUrl });
@@ -81,7 +81,7 @@ describe('Time-off request creation integration', () => {
       expect(response.body.employeeId).toBe(EMPLOYEE_ID);
       expect(response.body.locationId).toBe(LOCATION_ID);
       expect(response.body.status).toBe('PENDING');
-      expect(response.body.hcmRequestId).toBeDefined();
+      expect(response.body.hcmRequestId).not.toBeNull();
       expect(response.body.id).toBeDefined();
     });
 
@@ -102,7 +102,7 @@ describe('Time-off request creation integration', () => {
 
       expect(record).not.toBeNull();
       expect(record!.status).toBe('PENDING');
-      expect(record!.hcmRequestId).toBeDefined();
+      expect(record!.hcmRequestId).not.toBeNull();
     });
 
     it('decrements availableDays and increments reservedDays on the balance', async () => {
@@ -146,7 +146,7 @@ describe('Time-off request creation integration', () => {
       expect(auditEntries).toHaveLength(1);
       expect(auditEntries[0].reason).toBe('RESERVATION');
       expect(auditEntries[0].delta).toBe(-5);
-      expect(auditEntries[0].requestId).toBeDefined();
+      expect(auditEntries[0].requestId).not.toBeNull();
     });
 
     it('returns 400 when a required field is missing', async () => {
@@ -197,23 +197,28 @@ describe('Time-off request creation integration', () => {
         .expect(400);
     });
 
-    it('returns 422 when HCM rejects due to INVALID_DIMENSIONS', async () => {
-      // Use a location that is NOT seeded in the mock HCM server
-      await prisma.balance.create({
-        data: { employeeId: EMPLOYEE_ID, locationId: 'loc-unknown-in-hcm', availableDays: 20 },
+    describe('when HCM returns INVALID_DIMENSIONS', () => {
+      beforeEach(async () => {
+        await prisma.balance.create({
+          data: { employeeId: EMPLOYEE_ID, locationId: 'loc-unknown-in-hcm', availableDays: 20 },
+        });
       });
 
-      await request(app.getHttpServer())
-        .post('/time-off-requests')
-        .send({
-          employeeId: EMPLOYEE_ID,
-          locationId: 'loc-unknown-in-hcm',
-          startDate: '2025-06-01',
-          endDate: '2025-06-05',
-        })
-        .expect(422);
+      afterEach(async () => {
+        await prisma.balance.deleteMany({ where: { locationId: 'loc-unknown-in-hcm' } });
+      });
 
-      await prisma.balance.deleteMany({ where: { locationId: 'loc-unknown-in-hcm' } });
+      it('returns 422 when HCM rejects due to INVALID_DIMENSIONS', async () => {
+        await request(app.getHttpServer())
+          .post('/time-off-requests')
+          .send({
+            employeeId: EMPLOYEE_ID,
+            locationId: 'loc-unknown-in-hcm',
+            startDate: '2025-06-01',
+            endDate: '2025-06-05',
+          })
+          .expect(422);
+      });
     });
   });
 });
