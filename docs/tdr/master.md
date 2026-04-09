@@ -26,6 +26,8 @@
 - Base foundation agent plan: [2026-04-08-base-foundation-agent-plan.md](./agent-plans/2026-04-08-base-foundation-agent-plan.md)
 - F1 domain models spec: [f1-domain-models-spec.md](./specs/f1-domain-models-spec.md)
 - F1 domain models plan: [f1-domain-models-plan.md](./feature-plans/f1-domain-models-plan.md)
+- F2 balance management spec: [f2-balance-management-spec.md](./specs/f2-balance-management-spec.md)
+- F2 balance management plan: [f2-balance-management-plan.md](./feature-plans/f2-balance-management-plan.md)
 
 ## Pending Product Definitions
 - Canonical terminology for balances, requests, adjustments, and sync events
@@ -49,3 +51,18 @@ Resolved during F1 brainstorming. These are authoritative for all downstream fea
 | Enum strategy | String fields with documented constants | SQLite provider does not support Prisma `enum`; values enforced at application layer |
 | Audit → related entity | Nullable FK to TimeOffRequest + free-text `reference` | Direct typed link for request changes; flexible for sync/manual |
 | Migration approach | Single atomic migration for all models | Greenfield; maximizes Phase 2 parallelism |
+
+## F2 Design Decisions
+
+Resolved during F2 planning. These are authoritative for all features consuming balance operations.
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Internal method scope | All 5 mutation methods in F2 | Defines the balance contract for all downstream features |
+| Insufficient balance handling | Service throws error | Defensive — prevents invalid state at domain layer |
+| Balance not found (GET) | 404 response | Standard REST; balances must exist from HCM sync |
+| Balance not found (internal) | Service throws NotFoundException | Callers handle not-found; no silent failures |
+| List pagination | None for now | Employee rarely has many locations; add later if needed |
+| List empty result | 200 with empty array | Standard REST — empty collection is not an error |
+| employeeId query param | Required (400 if missing) | Listing all balances globally is not a valid use case |
+| Error class for insufficient balance | InsufficientBalanceError extends BadRequestException | Domain-specific, maps to 400 HTTP status automatically |
