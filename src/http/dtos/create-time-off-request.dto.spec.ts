@@ -1,5 +1,5 @@
-import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 
 import { CreateTimeOffRequestDto } from './create-time-off-request.dto';
 

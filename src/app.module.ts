@@ -1,6 +1,6 @@
-import { APP_PIPE } from '@nestjs/core';
 import { Module, ValidationPipe } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_PIPE } from '@nestjs/core';
 
 import { TimeOffModule } from '@module/time-off.module';
 

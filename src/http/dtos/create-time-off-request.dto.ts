@@ -3,15 +3,15 @@ import { IsDateString, IsNotEmpty, IsString } from 'class-validator';
 export class CreateTimeOffRequestDto {
   @IsString()
   @IsNotEmpty()
-  employeeId: string;
+  employeeId!: string;
 
   @IsString()
   @IsNotEmpty()
-  locationId: string;
+  locationId!: string;
 
   @IsDateString()
-  startDate: string;
+  startDate!: string;
 
   @IsDateString()
-  endDate: string;
+  endDate!: string;
 }
