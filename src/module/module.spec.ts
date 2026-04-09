@@ -1,7 +1,9 @@
 import { PrismaModule } from '@app-prisma/prisma.module';
 
+import { BalanceAuditService } from '@core/services/balance-audit.service';
 import { HealthService } from '@core/services/health.service';
 
+import { BalanceAuditController } from '@http/controllers/balance-audit.controller';
 import { HealthController } from '@http/controllers/health.controller';
 
 import { timeOffModuleControllers } from '@module/controllers';
@@ -17,10 +19,10 @@ describe('time-off module assembly', () => {
   });
 
   it('declares the expected providers', () => {
-    expect(timeOffModuleProviders).toEqual([HealthService]);
+    expect(timeOffModuleProviders).toEqual([HealthService, BalanceAuditService]);
   });
 
   it('declares the expected controllers', () => {
-    expect(timeOffModuleControllers).toEqual([HealthController]);
+    expect(timeOffModuleControllers).toEqual([HealthController, BalanceAuditController]);
   });
 });
