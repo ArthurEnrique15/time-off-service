@@ -60,9 +60,12 @@ describe('CustomHttpService', () => {
 
     mockAxiosRef.request.mockRejectedValue(networkError);
 
-    const result = await service.request({ method: 'GET', url: '/unreachable' });
+    const config: AxiosRequestConfig = { method: 'GET', url: '/unreachable' };
+    const result = await service.request(config);
 
     expect(result.status).toBe(500);
+    expect(result.statusText).toBe('Internal Server Error');
     expect(result.data).toEqual({ error: networkError });
+    expect(result.headers).toEqual({});
   });
 });

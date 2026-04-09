@@ -34,7 +34,7 @@ export class HcmClient {
   async getBalance(employeeId: string, locationId: string): Promise<GetBalanceResult> {
     const response = await this.customHttpService.request({
       method: 'GET',
-      url: `${this.baseUrl}/balances/${employeeId}/${locationId}`,
+      url: `${this.baseUrl}/balances/${encodeURIComponent(employeeId)}/${encodeURIComponent(locationId)}`,
       timeout: this.timeout,
     });
 
@@ -63,7 +63,7 @@ export class HcmClient {
   async cancelTimeOff(requestId: string): Promise<CancelTimeOffResult> {
     const response = await this.customHttpService.request({
       method: 'DELETE',
-      url: `${this.baseUrl}/time-off-requests/${requestId}`,
+      url: `${this.baseUrl}/time-off-requests/${encodeURIComponent(requestId)}`,
       timeout: this.timeout,
     });
 

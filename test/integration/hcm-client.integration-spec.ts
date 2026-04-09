@@ -151,5 +151,30 @@ describe('HcmClient integration', () => {
         expect(result.value.code).toBe('NOT_FOUND');
       }
     });
+
+    it('restores balance after cancelling a request', async () => {
+      const balanceBefore = await hcmClient.getBalance('emp-2', 'loc-2');
+
+      expect(balanceBefore.isSuccess()).toBe(true);
+      const daysBefore = balanceBefore.value.availableDays;
+
+      const submitResult = await hcmClient.submitTimeOff({
+        employeeId: 'emp-2',
+        locationId: 'loc-2',
+        startDate: '2026-07-01',
+        endDate: '2026-07-01',
+      });
+
+      expect(submitResult.isSuccess()).toBe(true);
+
+      const cancelResult = await hcmClient.cancelTimeOff(submitResult.value.id);
+
+      expect(cancelResult.isSuccess()).toBe(true);
+
+      const balanceAfter = await hcmClient.getBalance('emp-2', 'loc-2');
+
+      expect(balanceAfter.isSuccess()).toBe(true);
+      expect(balanceAfter.value.availableDays).toBe(daysBefore);
+    });
   });
 });

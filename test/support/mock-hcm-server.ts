@@ -149,6 +149,16 @@ export const startMockHcmServer = async (options: MockHcmServerOptions = {}) => 
         return;
       }
 
+      const startDate = new Date(storedRequest.startDate);
+      const endDate = new Date(storedRequest.endDate);
+      const daysRequested = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      const key = `${storedRequest.employeeId}:${storedRequest.locationId}`;
+      const balance = balanceStore.get(key);
+
+      if (balance) {
+        balance.availableDays += daysRequested;
+      }
+
       requestStore.delete(requestId);
       response.writeHead(204);
       response.end();

@@ -17,14 +17,21 @@ export class CustomHttpService {
       this.logger.error('Request error', {
         method: config.method,
         url: config.url,
-        error,
+        status: error.response?.status,
+        message: error.message,
       });
 
       if (error.response) {
         return error.response;
       }
 
-      return { status: 500, data: { error } } as AxiosResponse;
+      return {
+        status: 500,
+        statusText: 'Internal Server Error',
+        data: { error },
+        headers: {},
+        config,
+      } as AxiosResponse;
     }
   }
 }
