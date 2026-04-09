@@ -9,10 +9,7 @@ import { InsufficientBalanceError } from '@shared/errors/insufficient-balance.er
 export class BalanceService {
   constructor(private readonly prismaService: PrismaService) {}
 
-  async findByEmployeeAndLocation(
-    employeeId: string,
-    locationId: string,
-  ): Promise<Balance | null> {
+  async findByEmployeeAndLocation(employeeId: string, locationId: string): Promise<Balance | null> {
     return this.prismaService.balance.findUnique({
       where: { employeeId_locationId: { employeeId, locationId } },
     });
@@ -40,11 +37,7 @@ export class BalanceService {
     });
   }
 
-  async releaseReservation(
-    employeeId: string,
-    locationId: string,
-    days: number,
-  ): Promise<Balance> {
+  async releaseReservation(employeeId: string, locationId: string, days: number): Promise<Balance> {
     const balance = await this.findAndValidateExists(employeeId, locationId);
 
     if (balance.reservedDays < days) {
@@ -60,11 +53,7 @@ export class BalanceService {
     });
   }
 
-  async confirmDeduction(
-    employeeId: string,
-    locationId: string,
-    days: number,
-  ): Promise<Balance> {
+  async confirmDeduction(employeeId: string, locationId: string, days: number): Promise<Balance> {
     const balance = await this.findAndValidateExists(employeeId, locationId);
 
     if (balance.reservedDays < days) {
@@ -79,11 +68,7 @@ export class BalanceService {
     });
   }
 
-  async restoreBalance(
-    employeeId: string,
-    locationId: string,
-    days: number,
-  ): Promise<Balance> {
+  async restoreBalance(employeeId: string, locationId: string, days: number): Promise<Balance> {
     await this.findAndValidateExists(employeeId, locationId);
 
     return this.prismaService.balance.update({
@@ -94,11 +79,7 @@ export class BalanceService {
     });
   }
 
-  async setAvailableDays(
-    employeeId: string,
-    locationId: string,
-    newAvailable: number,
-  ): Promise<Balance> {
+  async setAvailableDays(employeeId: string, locationId: string, newAvailable: number): Promise<Balance> {
     await this.findAndValidateExists(employeeId, locationId);
 
     return this.prismaService.balance.update({
@@ -109,16 +90,11 @@ export class BalanceService {
     });
   }
 
-  private async findAndValidateExists(
-    employeeId: string,
-    locationId: string,
-  ): Promise<Balance> {
+  private async findAndValidateExists(employeeId: string, locationId: string): Promise<Balance> {
     const balance = await this.findByEmployeeAndLocation(employeeId, locationId);
 
     if (!balance) {
-      throw new NotFoundException(
-        `Balance not found for employee ${employeeId} at location ${locationId}`,
-      );
+      throw new NotFoundException(`Balance not found for employee ${employeeId} at location ${locationId}`);
     }
 
     return balance;

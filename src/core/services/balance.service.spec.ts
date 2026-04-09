@@ -2,9 +2,9 @@ import { NotFoundException } from '@nestjs/common';
 
 import type { PrismaService } from '@app-prisma/prisma.service';
 
-import { InsufficientBalanceError } from '@shared/errors/insufficient-balance.error';
-
 import { BalanceService } from '@core/services/balance.service';
+
+import { InsufficientBalanceError } from '@shared/errors/insufficient-balance.error';
 
 describe('BalanceService', () => {
   const mockBalance = {
@@ -103,7 +103,9 @@ describe('BalanceService', () => {
       const findUnique = jest.fn().mockResolvedValue(null);
       const service = createService({ findUnique });
 
-      await expect(service.reserve('emp-1', 'loc-1', 3)).rejects.toThrow(NotFoundException);
+      await expect(service.reserve('emp-1', 'loc-1', 3)).rejects.toThrow(
+        'Balance not found for employee emp-1 at location loc-1',
+      );
     });
 
     it('throws InsufficientBalanceError when available days are insufficient', async () => {
@@ -111,9 +113,19 @@ describe('BalanceService', () => {
       const findUnique = jest.fn().mockResolvedValue(lowBalance);
       const service = createService({ findUnique });
 
-      await expect(service.reserve('emp-1', 'loc-1', 5)).rejects.toThrow(
-        InsufficientBalanceError,
-      );
+      await expect(service.reserve('emp-1', 'loc-1', 5)).rejects.toThrow(InsufficientBalanceError);
+    });
+
+    it('succeeds when requesting exactly the available days', async () => {
+      const exactBalance = { ...mockBalance, availableDays: 5, reservedDays: 0 };
+      const updatedBalance = { ...exactBalance, availableDays: 0, reservedDays: 5 };
+      const findUnique = jest.fn().mockResolvedValue(exactBalance);
+      const update = jest.fn().mockResolvedValue(updatedBalance);
+      const service = createService({ findUnique, update });
+
+      const result = await service.reserve('emp-1', 'loc-1', 5);
+
+      expect(result).toEqual(updatedBalance);
     });
   });
 
@@ -140,9 +152,7 @@ describe('BalanceService', () => {
       const findUnique = jest.fn().mockResolvedValue(null);
       const service = createService({ findUnique });
 
-      await expect(service.releaseReservation('emp-1', 'loc-1', 3)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.releaseReservation('emp-1', 'loc-1', 3)).rejects.toThrow(NotFoundException);
     });
 
     it('throws InsufficientBalanceError when reserved days are insufficient', async () => {
@@ -150,13 +160,20 @@ describe('BalanceService', () => {
       const findUnique = jest.fn().mockResolvedValue(lowReserved);
       const service = createService({ findUnique });
 
-      await expect(service.releaseReservation('emp-1', 'loc-1', 5)).rejects.toThrow(
-        InsufficientBalanceError,
-      );
+      await expect(service.releaseReservation('emp-1', 'loc-1', 5)).rejects.toThrow(InsufficientBalanceError);
     });
-  });
 
-  describe('confirmDeduction', () => {
+    it('succeeds when releasing exactly the reserved days', async () => {
+      const exactReserved = { ...mockBalance, reservedDays: 3, availableDays: 10 };
+      const updatedBalance = { ...exactReserved, reservedDays: 0, availableDays: 13 };
+      const findUnique = jest.fn().mockResolvedValue(exactReserved);
+      const update = jest.fn().mockResolvedValue(updatedBalance);
+      const service = createService({ findUnique, update });
+
+      const result = await service.releaseReservation('emp-1', 'loc-1', 3);
+
+      expect(result).toEqual(updatedBalance);
+    });
     it('decreases reserved days permanently, returning the updated balance', async () => {
       const updatedBalance = { ...mockBalance, reservedDays: 2 };
       const findUnique = jest.fn().mockResolvedValue(mockBalance);
@@ -178,9 +195,7 @@ describe('BalanceService', () => {
       const findUnique = jest.fn().mockResolvedValue(null);
       const service = createService({ findUnique });
 
-      await expect(service.confirmDeduction('emp-1', 'loc-1', 3)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.confirmDeduction('emp-1', 'loc-1', 3)).rejects.toThrow(NotFoundException);
     });
 
     it('throws InsufficientBalanceError when reserved days are insufficient', async () => {
@@ -188,9 +203,19 @@ describe('BalanceService', () => {
       const findUnique = jest.fn().mockResolvedValue(lowReserved);
       const service = createService({ findUnique });
 
-      await expect(service.confirmDeduction('emp-1', 'loc-1', 5)).rejects.toThrow(
-        InsufficientBalanceError,
-      );
+      await expect(service.confirmDeduction('emp-1', 'loc-1', 5)).rejects.toThrow(InsufficientBalanceError);
+    });
+
+    it('succeeds when confirming exactly the reserved days', async () => {
+      const exactReserved = { ...mockBalance, reservedDays: 3 };
+      const updatedBalance = { ...exactReserved, reservedDays: 0 };
+      const findUnique = jest.fn().mockResolvedValue(exactReserved);
+      const update = jest.fn().mockResolvedValue(updatedBalance);
+      const service = createService({ findUnique, update });
+
+      const result = await service.confirmDeduction('emp-1', 'loc-1', 3);
+
+      expect(result).toEqual(updatedBalance);
     });
   });
 
@@ -216,9 +241,7 @@ describe('BalanceService', () => {
       const findUnique = jest.fn().mockResolvedValue(null);
       const service = createService({ findUnique });
 
-      await expect(service.restoreBalance('emp-1', 'loc-1', 3)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.restoreBalance('emp-1', 'loc-1', 3)).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -244,9 +267,7 @@ describe('BalanceService', () => {
       const findUnique = jest.fn().mockResolvedValue(null);
       const service = createService({ findUnique });
 
-      await expect(service.setAvailableDays('emp-1', 'loc-1', 30)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.setAvailableDays('emp-1', 'loc-1', 30)).rejects.toThrow(NotFoundException);
     });
   });
 });

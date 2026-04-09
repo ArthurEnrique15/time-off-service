@@ -13,16 +13,11 @@ export class BalanceController {
   }
 
   @Get(':employeeId/:locationId')
-  async findOne(
-    @Param('employeeId') employeeId: string,
-    @Param('locationId') locationId: string,
-  ): Promise<Balance> {
+  async findOne(@Param('employeeId') employeeId: string, @Param('locationId') locationId: string): Promise<Balance> {
     const balance = await this.balanceService.findByEmployeeAndLocation(employeeId, locationId);
 
     if (!balance) {
-      throw new NotFoundException(
-        `Balance not found for employee ${employeeId} at location ${locationId}`,
-      );
+      throw new NotFoundException(`Balance not found for employee ${employeeId} at location ${locationId}`);
     }
 
     return balance;

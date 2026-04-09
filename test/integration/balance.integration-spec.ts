@@ -1,6 +1,5 @@
-import { execSync } from 'node:child_process';
-
 import type { INestApplication } from '@nestjs/common';
+import { execSync } from 'node:child_process';
 import request from 'supertest';
 
 import type { BalanceService } from '../../src/core/services/balance.service';
@@ -33,9 +32,7 @@ describe('Balance management integration', () => {
 
     const { AppModule } = await import('../../src/app.module');
     const { PrismaService: PrismaServiceClass } = await import('../../src/prisma/prisma.service');
-    const { BalanceService: BalanceServiceClass } = await import(
-      '../../src/core/services/balance.service'
-    );
+    const { BalanceService: BalanceServiceClass } = await import('../../src/core/services/balance.service');
     const { Test } = await import('@nestjs/testing');
 
     const moduleRef = await Test.createTestingModule({
@@ -105,9 +102,7 @@ describe('Balance management integration', () => {
         },
       });
 
-      const response = await request(app.getHttpServer())
-        .get('/balances/emp-get/loc-get')
-        .expect(200);
+      const response = await request(app.getHttpServer()).get('/balances/emp-get/loc-get').expect(200);
 
       expect(response.body.employeeId).toBe('emp-get');
       expect(response.body.locationId).toBe('loc-get');
@@ -116,9 +111,7 @@ describe('Balance management integration', () => {
     });
 
     it('returns 404 when the balance does not exist', async () => {
-      await request(app.getHttpServer())
-        .get('/balances/emp-missing/loc-missing')
-        .expect(404);
+      await request(app.getHttpServer()).get('/balances/emp-missing/loc-missing').expect(404);
     });
   });
 
@@ -149,9 +142,7 @@ describe('Balance management integration', () => {
         },
       });
 
-      await expect(
-        balanceService.reserve('emp-reserve-fail', 'loc-reserve-fail', 10),
-      ).rejects.toThrow();
+      await expect(balanceService.reserve('emp-reserve-fail', 'loc-reserve-fail', 10)).rejects.toThrow();
     });
 
     it('releaseReservation reverses a reservation', async () => {
