@@ -3,6 +3,7 @@ import type { Config } from 'jest';
 const config: Config = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   rootDir: '.',
+  roots: ['<rootDir>/test'],
   testRegex: '.*\\.integration-spec\\.ts$',
   transform: {
     '^.+\\.(t|j)sx?$': '@swc/jest',
@@ -10,6 +11,7 @@ const config: Config = {
   testEnvironment: 'node',
   clearMocks: true,
   passWithNoTests: false,
+  modulePathIgnorePatterns: ['<rootDir>/.worktrees/', '<rootDir>/dist/'],
   moduleNameMapper: {
     '^@app-prisma/(.*)$': '<rootDir>/src/prisma/$1',
     '^@core/(.*)$': '<rootDir>/src/core/$1',
