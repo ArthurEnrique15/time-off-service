@@ -32,6 +32,7 @@
 - F3 balance audit trail plan: [f3-balance-audit-trail-plan.md](./feature-plans/f3-balance-audit-trail-plan.md)
 - F4 HCM client spec: [f4-hcm-client-spec.md](./specs/f4-hcm-client-spec.md)
 - F4 HCM client plan: [f4-hcm-client-plan.md](./feature-plans/f4-hcm-client-plan.md)
+- F7 HCM batch sync spec: [f7-hcm-batch-sync-spec.md](./specs/f7-hcm-batch-sync-spec.md)
 
 ## Pending Product Definitions
 - Canonical terminology for balances, requests, adjustments, and sync events

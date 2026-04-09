@@ -10,6 +10,12 @@ These instructions are mandatory for every agent working in this repository.
 - Every feature plan must be linked from the master TDR.
 - Every agent work plan must be saved in the repository.
 
+## Workspace Rules
+- **Never commit anything directly to the main workspace.** All development work — including specs, plans, and implementation — must happen inside a git worktree.
+- The first action when starting any feature is to create a worktree using the `using-git-worktrees` skill.
+- Use `.worktrees/<branch-name>` as the worktree path (`.worktrees/` is gitignored).
+- Spec and plan files written before a worktree exists must be staged and committed inside the worktree, not in the main workspace.
+
 ## Ambiguity Policy
 - Never infer on ambiguous product or technical requirements.
 - Stop and ask the user for clarification whenever a decision could change behavior, public contracts, persistence, testing scope, or workflow.
