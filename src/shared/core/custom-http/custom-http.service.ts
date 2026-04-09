@@ -13,7 +13,7 @@ export class CustomHttpService {
       const response = await this.httpService.axiosRef.request<T, AxiosResponse<T>, D>(config);
 
       return response;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Request error', {
         method: config.method,
         url: config.url,
