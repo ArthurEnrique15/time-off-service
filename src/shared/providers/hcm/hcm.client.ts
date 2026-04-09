@@ -1,21 +1,97 @@
 import { Injectable } from '@nestjs/common';
+import { HttpStatus } from '@nestjs/common';
 
+import { Failure, Success } from '@shared/core/either';
+import { CustomHttpService } from '@shared/core/custom-http';
 import { EnvConfigService } from '@shared/config/env';
+
+import type {
+  CancelTimeOffResult,
+  GetBalanceResult,
+  HcmError,
+  HcmErrorCode,
+  HcmSubmitRequest,
+  SubmitTimeOffResult,
+} from './hcm.types';
 
 @Injectable()
 export class HcmClient {
-  constructor(private readonly envConfigService: EnvConfigService) {}
+  constructor(
+    private readonly customHttpService: CustomHttpService,
+    private readonly envConfigService: EnvConfigService,
+  ) {}
 
   async checkConnection(): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.envConfigService.get('hcm.apiBaseUrl')}/health`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(this.envConfigService.get('hcm.timeoutMs')),
-      });
+    const response = await this.customHttpService.request({
+      method: 'GET',
+      url: `${this.baseUrl}/health`,
+      timeout: this.timeout,
+    });
 
-      return response.ok;
-    } catch {
-      return false;
+    return response.status === HttpStatus.OK;
+  }
+
+  async getBalance(employeeId: string, locationId: string): Promise<GetBalanceResult> {
+    const response = await this.customHttpService.request({
+      method: 'GET',
+      url: `${this.baseUrl}/balances/${employeeId}/${locationId}`,
+      timeout: this.timeout,
+    });
+
+    if (response.status === HttpStatus.OK) {
+      return Success.create(response.data);
     }
+
+    return Failure.create(this.toHcmError(response.status, response.data));
+  }
+
+  async submitTimeOff(request: HcmSubmitRequest): Promise<SubmitTimeOffResult> {
+    const response = await this.customHttpService.request({
+      method: 'POST',
+      url: `${this.baseUrl}/time-off-requests`,
+      timeout: this.timeout,
+      data: request,
+    });
+
+    if (response.status === HttpStatus.CREATED) {
+      return Success.create(response.data);
+    }
+
+    return Failure.create(this.toHcmError(response.status, response.data));
+  }
+
+  async cancelTimeOff(requestId: string): Promise<CancelTimeOffResult> {
+    const response = await this.customHttpService.request({
+      method: 'DELETE',
+      url: `${this.baseUrl}/time-off-requests/${requestId}`,
+      timeout: this.timeout,
+    });
+
+    if (response.status === HttpStatus.NO_CONTENT) {
+      return Success.create(undefined);
+    }
+
+    return Failure.create(this.toHcmError(response.status, response.data));
+  }
+
+  private get baseUrl(): string {
+    return this.envConfigService.get('hcm.apiBaseUrl');
+  }
+
+  private get timeout(): number {
+    return this.envConfigService.get('hcm.timeoutMs');
+  }
+
+  private toHcmError(statusCode: number, data: any): HcmError {
+    const knownCodes: HcmErrorCode[] = [
+      'INVALID_DIMENSIONS',
+      'INSUFFICIENT_BALANCE',
+      'NOT_FOUND',
+    ];
+
+    const code: HcmErrorCode = knownCodes.includes(data?.error) ? data.error : 'UNKNOWN';
+    const message: string = data?.message ?? `HCM responded with status ${statusCode}`;
+
+    return { code, message, statusCode };
   }
 }
