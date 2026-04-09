@@ -20,9 +20,10 @@
 - The TDR is the source of truth for architectural decisions and links to executable specs and plans.
 
 ## Active Documents
-- Base foundation spec: [2026-04-08-base-foundation-spec.md](/Users/arthur/www/projects/time-off-service/.worktrees/base-foundation/docs/tdr/specs/2026-04-08-base-foundation-spec.md)
-- Base foundation implementation plan: [2026-04-08-base-foundation-plan.md](/Users/arthur/www/projects/time-off-service/.worktrees/base-foundation/docs/tdr/feature-plans/2026-04-08-base-foundation-plan.md)
-- Base foundation agent plan: [2026-04-08-base-foundation-agent-plan.md](/Users/arthur/www/projects/time-off-service/.worktrees/base-foundation/docs/tdr/agent-plans/2026-04-08-base-foundation-agent-plan.md)
+- **Feature roadmap:** [feature-roadmap.md](./feature-roadmap.md)
+- Base foundation spec: [2026-04-08-base-foundation-spec.md](./specs/2026-04-08-base-foundation-spec.md)
+- Base foundation implementation plan: [2026-04-08-base-foundation-plan.md](./feature-plans/2026-04-08-base-foundation-plan.md)
+- Base foundation agent plan: [2026-04-08-base-foundation-agent-plan.md](./agent-plans/2026-04-08-base-foundation-agent-plan.md)
 
 ## Pending Product Definitions
 - Canonical terminology for balances, requests, adjustments, and sync events
