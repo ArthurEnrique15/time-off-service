@@ -1,0 +1,14 @@
+.DS_Store
+.env
+.env.test
+.env.local
+.worktrees/
+node_modules/
+dist/
+coverage/
+.stryker-tmp/
+reports/
+*.sqlite
+*.sqlite-journal
+*.db
+*.db-journal
