@@ -12,3 +12,49 @@ model ServiceMetadata {
   value     String
   updatedAt DateTime @updatedAt
 }
+
+model Balance {
+  id             String   @id @default(uuid())
+  employeeId     String
+  locationId     String
+  availableDays  Int      @default(0)
+  reservedDays   Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  auditEntries BalanceAuditEntry[]
+
+  @@unique([employeeId, locationId])
+  @@index([employeeId])
+}
+
+model TimeOffRequest {
+  id          String   @id @default(uuid())
+  employeeId  String
+  locationId  String
+  startDate   DateTime
+  endDate     DateTime
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  auditEntries BalanceAuditEntry[]
+
+  @@index([employeeId, status])
+}
+
+model BalanceAuditEntry {
+  id        String   @id @default(uuid())
+  balanceId String
+  requestId String?
+  delta     Int
+  reason    String
+  reference String?
+  actorId   String?
+  createdAt DateTime @default(now())
+
+  balance Balance         @relation(fields: [balanceId], references: [id])
+  request TimeOffRequest? @relation(fields: [requestId], references: [id])
+
+  @@index([balanceId, createdAt])
+}
