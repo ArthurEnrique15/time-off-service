@@ -31,8 +31,8 @@ export class TimeOffRequestController {
     const parsedLimit = limit ? parseInt(limit, 10) : undefined;
 
     return this.timeOffRequestService.findAllByEmployee(employeeId, {
-      page: Number.isFinite(parsedPage) ? parsedPage! : 1,
-      limit: Number.isFinite(parsedLimit) ? parsedLimit! : 20,
+      page: Number.isFinite(parsedPage) ? parsedPage : 1,
+      limit: Number.isFinite(parsedLimit) ? parsedLimit : 20,
       status: status as TimeOffRequestStatus | undefined,
     });
   }

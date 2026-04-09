@@ -100,5 +100,23 @@ describe('TimeOffRequestController', () => {
       const call = (timeOffRequestService.findAllByEmployee as jest.Mock).mock.calls[0][1];
       expect(call.status).toBeUndefined();
     });
+
+    it('uses default page when page is NaN', async () => {
+      const { controller, timeOffRequestService } = createController();
+
+      await controller.findAll('emp-1', undefined, 'abc', undefined);
+
+      const call = (timeOffRequestService.findAllByEmployee as jest.Mock).mock.calls[0][1];
+      expect(call.page).toBe(1);
+    });
+
+    it('uses default limit when limit is NaN', async () => {
+      const { controller, timeOffRequestService } = createController();
+
+      await controller.findAll('emp-1', undefined, undefined, 'xyz');
+
+      const call = (timeOffRequestService.findAllByEmployee as jest.Mock).mock.calls[0][1];
+      expect(call.limit).toBe(20);
+    });
   });
 });
