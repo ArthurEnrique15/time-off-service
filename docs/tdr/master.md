@@ -24,9 +24,28 @@
 - Base foundation spec: [2026-04-08-base-foundation-spec.md](./specs/2026-04-08-base-foundation-spec.md)
 - Base foundation implementation plan: [2026-04-08-base-foundation-plan.md](./feature-plans/2026-04-08-base-foundation-plan.md)
 - Base foundation agent plan: [2026-04-08-base-foundation-agent-plan.md](./agent-plans/2026-04-08-base-foundation-agent-plan.md)
+- F1 domain models spec: [f1-domain-models-spec.md](./specs/f1-domain-models-spec.md)
+- F1 domain models plan: [f1-domain-models-plan.md](./feature-plans/f1-domain-models-plan.md)
 
 ## Pending Product Definitions
 - Canonical terminology for balances, requests, adjustments, and sync events
 - Time model and date boundary policy
 - HCM sync semantics and idempotency rules
 - Error contract and versioning policy
+
+## F1 Design Decisions
+
+Resolved during F1 brainstorming. These are authoritative for all downstream features.
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Balance fields | `availableDays` + `reservedDays` | Standard model supports F5 tentative reservation without workarounds |
+| Time dimension on requests | `startDate` + `endDate` date range | Aligns with typical PTO workflows; day count derived as (end − start + 1) |
+| Day granularity | Integer days only | Matches take-home scope; no half-day support needed |
+| Request status model | PENDING, APPROVED, REJECTED, CANCELLED | Simple four-state; HCM sync outcomes handled via rollback, not extra states |
+| Balance uniqueness | Composite unique on (employeeId, locationId) | One balance per dimension enforced at the DB level |
+| Employee / location IDs | Opaque strings from HCM | No local entity tables; "referenced by ID only" per roadmap |
+| Primary key strategy | UUID (`@default(uuid())`) | Consistent across all domain models |
+| Enum strategy | Prisma `enum` types | Type-safe generated client code; self-documenting schema |
+| Audit → related entity | Nullable FK to TimeOffRequest + free-text `reference` | Direct typed link for request changes; flexible for sync/manual |
+| Migration approach | Single atomic migration for all models | Greenfield; maximizes Phase 2 parallelism |
