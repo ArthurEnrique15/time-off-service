@@ -194,14 +194,37 @@ describe('Time-off request read integration', () => {
         ],
       });
 
-      const response = await request(app.getHttpServer())
+      const page1 = await request(app.getHttpServer())
         .get('/time-off-requests?employeeId=emp-page&page=1&limit=2')
         .expect(200);
 
-      expect(response.body.data).toHaveLength(2);
-      expect(response.body.pagination.total).toBe(3);
-      expect(response.body.pagination.totalPages).toBe(2);
-      expect(response.body.pagination.limit).toBe(2);
+      expect(page1.body.data).toHaveLength(2);
+      expect(page1.body.pagination.total).toBe(3);
+      expect(page1.body.pagination.totalPages).toBe(2);
+      expect(page1.body.pagination.limit).toBe(2);
+
+      const page2 = await request(app.getHttpServer())
+        .get('/time-off-requests?employeeId=emp-page&page=2&limit=2')
+        .expect(200);
+
+      expect(page2.body.data).toHaveLength(1);
+      expect(page2.body.pagination.page).toBe(2);
+    });
+
+    it('clamps page=0 to page=1', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/time-off-requests?employeeId=emp-no-requests&page=0')
+        .expect(200);
+
+      expect(response.body.pagination.page).toBe(1);
+    });
+
+    it('defaults page to 1 when non-numeric', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/time-off-requests?employeeId=emp-no-requests&page=abc')
+        .expect(200);
+
+      expect(response.body.pagination.page).toBe(1);
     });
   });
 });
