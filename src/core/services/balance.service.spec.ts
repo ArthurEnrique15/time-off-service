@@ -31,8 +31,8 @@ describe('BalanceService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    mockPrismaService.$transaction.mockImplementation(
-      (cb: (tx: typeof mockPrismaService) => unknown) => cb(mockPrismaService),
+    mockPrismaService.$transaction.mockImplementation((cb: (tx: typeof mockPrismaService) => unknown) =>
+      cb(mockPrismaService),
     );
 
     const module: TestingModule = await Test.createTestingModule({
