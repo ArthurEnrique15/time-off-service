@@ -26,6 +26,8 @@
 - Base foundation agent plan: [2026-04-08-base-foundation-agent-plan.md](./agent-plans/2026-04-08-base-foundation-agent-plan.md)
 - F1 domain models spec: [f1-domain-models-spec.md](./specs/f1-domain-models-spec.md)
 - F1 domain models plan: [f1-domain-models-plan.md](./feature-plans/f1-domain-models-plan.md)
+- F3 balance audit trail spec: [f3-balance-audit-trail-spec.md](./specs/f3-balance-audit-trail-spec.md)
+- F3 balance audit trail plan: [f3-balance-audit-trail-plan.md](./feature-plans/f3-balance-audit-trail-plan.md)
 
 ## Pending Product Definitions
 - Canonical terminology for balances, requests, adjustments, and sync events
@@ -49,3 +51,17 @@ Resolved during F1 brainstorming. These are authoritative for all downstream fea
 | Enum strategy | String fields with documented constants | SQLite provider does not support Prisma `enum`; values enforced at application layer |
 | Audit → related entity | Nullable FK to TimeOffRequest + free-text `reference` | Direct typed link for request changes; flexible for sync/manual |
 | Migration approach | Single atomic migration for all models | Greenfield; maximizes Phase 2 parallelism |
+
+## F3 Design Decisions
+
+Resolved during F3 brainstorming. These are authoritative for the audit trail feature and downstream consumers.
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Audit write surface | Internal service method only | No external POST; downstream features inject the service |
+| History pagination | Offset/limit (`page`, `limit`) | Simple, matches typical REST APIs |
+| History default sort | Descending by `createdAt` | Most-recent-first is the natural audit view |
+| History reason filter | Optional `?reason=` query param | Allows callers to narrow by change type |
+| Balance not found | HTTP 404 | Clear signal vs. ambiguous empty array |
+| Reason constant location | Exported from the service file | Single source of truth; extract later if needed |
+| Paginated response shape | `{ data, pagination: { page, limit, total, totalPages } }` | Standard offset/limit envelope |
