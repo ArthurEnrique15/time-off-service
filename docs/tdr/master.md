@@ -46,6 +46,6 @@ Resolved during F1 brainstorming. These are authoritative for all downstream fea
 | Balance uniqueness | Composite unique on (employeeId, locationId) | One balance per dimension enforced at the DB level |
 | Employee / location IDs | Opaque strings from HCM | No local entity tables; "referenced by ID only" per roadmap |
 | Primary key strategy | UUID (`@default(uuid())`) | Consistent across all domain models |
-| Enum strategy | Prisma `enum` types | Type-safe generated client code; self-documenting schema |
+| Enum strategy | String fields with documented constants | SQLite provider does not support Prisma `enum`; values enforced at application layer |
 | Audit → related entity | Nullable FK to TimeOffRequest + free-text `reference` | Direct typed link for request changes; flexible for sync/manual |
 | Migration approach | Single atomic migration for all models | Greenfield; maximizes Phase 2 parallelism |
