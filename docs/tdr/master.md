@@ -30,6 +30,8 @@
 - F2 balance management plan: [f2-balance-management-plan.md](./feature-plans/f2-balance-management-plan.md)
 - F3 balance audit trail spec: [f3-balance-audit-trail-spec.md](./specs/f3-balance-audit-trail-spec.md)
 - F3 balance audit trail plan: [f3-balance-audit-trail-plan.md](./feature-plans/f3-balance-audit-trail-plan.md)
+- F4 HCM client spec: [f4-hcm-client-spec.md](./specs/f4-hcm-client-spec.md)
+- F4 HCM client plan: [f4-hcm-client-plan.md](./feature-plans/f4-hcm-client-plan.md)
 
 ## Pending Product Definitions
 - Canonical terminology for balances, requests, adjustments, and sync events
@@ -82,3 +84,20 @@ Resolved during F3 brainstorming. These are authoritative for the audit trail fe
 | Balance not found | HTTP 404 | Clear signal vs. ambiguous empty array |
 | Reason constant location | Exported from the service file | Single source of truth; extract later if needed |
 | Paginated response shape | `{ data, pagination: { page, limit, total, totalPages } }` | Standard offset/limit envelope |
+
+## F4 Design Decisions
+
+Resolved during F4 brainstorming. These are authoritative for all downstream features
+that interact with the HCM or use shared infrastructure.
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Error handling pattern | `Either<Failure, Success>` (GCB pattern) | Newer GCB repos (billing, invoice) use this consistently; explicit, composable, no try/catch needed by callers |
+| HTTP layer | `CustomHttpService` wrapping `@nestjs/axios` | Matches GCB pattern; never throws; normalizes network errors to `AxiosResponse` |
+| `checkConnection` refactor | Uses `CustomHttpService` internally, keeps `boolean` return | Consistency within the client; health check callers unaffected |
+| HCM API contract | Self-defined REST contract (we control the mock) | GET balance, POST time-off, DELETE time-off |
+| HCM error codes | `INVALID_DIMENSIONS`, `INSUFFICIENT_BALANCE`, `NOT_FOUND`, `UNKNOWN` | Covers all HCM rejection cases from the take-home spec |
+| Either type location | `src/shared/core/either/` | Follows GCB directory structure; reusable by all downstream features |
+| CustomHttpService location | `src/shared/core/custom-http/` | Follows GCB directory structure; separate from HCM-specific code |
+| HCM types location | `src/shared/providers/hcm/hcm.types.ts` | Co-located with client; DTOs are HCM-specific |
+| Mock HCM server | Stateful with seedable balances/requests | Allows integration tests to configure realistic scenarios |
