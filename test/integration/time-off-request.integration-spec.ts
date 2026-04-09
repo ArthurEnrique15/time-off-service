@@ -153,35 +153,36 @@ describe('Time-off request read integration', () => {
     });
 
     it('returns results sorted descending by createdAt', async () => {
-      const older = await prisma.timeOffRequest.create({
-        data: {
-          employeeId: 'emp-sort',
-          locationId: 'loc-sort',
-          startDate: new Date('2026-06-01'),
-          endDate: new Date('2026-06-02'),
-          status: 'PENDING',
-        },
-      });
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO TimeOffRequest (id, employeeId, locationId, startDate, endDate, status, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        'sort-req-1',
+        'emp-sort',
+        'loc-sort',
+        '2026-06-01T00:00:00.000Z',
+        '2026-06-02T00:00:00.000Z',
+        'PENDING',
+        '2026-01-01T10:00:00.000Z',
+        '2026-01-01T10:00:00.000Z',
+      );
 
-      // small delay so createdAt differs
-      await new Promise((r) => setTimeout(r, 10));
-
-      const newer = await prisma.timeOffRequest.create({
-        data: {
-          employeeId: 'emp-sort',
-          locationId: 'loc-sort',
-          startDate: new Date('2026-07-01'),
-          endDate: new Date('2026-07-02'),
-          status: 'PENDING',
-        },
-      });
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO TimeOffRequest (id, employeeId, locationId, startDate, endDate, status, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        'sort-req-2',
+        'emp-sort',
+        'loc-sort',
+        '2026-07-01T00:00:00.000Z',
+        '2026-07-02T00:00:00.000Z',
+        'PENDING',
+        '2026-01-02T10:00:00.000Z',
+        '2026-01-02T10:00:00.000Z',
+      );
 
       const response = await request(app.getHttpServer())
         .get('/time-off-requests?employeeId=emp-sort')
         .expect(200);
 
-      expect(response.body.data[0].id).toBe(newer.id);
-      expect(response.body.data[1].id).toBe(older.id);
+      expect(response.body.data[0].id).toBe('sort-req-2');
+      expect(response.body.data[1].id).toBe('sort-req-1');
     });
 
     it('respects pagination params', async () => {
