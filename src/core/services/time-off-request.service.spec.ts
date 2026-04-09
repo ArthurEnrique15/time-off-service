@@ -110,6 +110,7 @@ describe('TimeOffRequestService', () => {
 
       const call = (prismaService.timeOffRequest.findMany as jest.Mock).mock.calls[0][0];
       expect(call.orderBy).toEqual({ createdAt: 'desc' });
+      expect(call.where).toStrictEqual({ employeeId: 'emp-1' });
     });
 
     it('computes correct skip for page 2', async () => {
