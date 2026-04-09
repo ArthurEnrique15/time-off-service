@@ -47,6 +47,10 @@ describe('Balance management integration', () => {
     balanceService = moduleRef.get(BalanceServiceClass);
   });
 
+  afterEach(async () => {
+    await prisma.balance.deleteMany({});
+  });
+
   afterAll(async () => {
     await app.close();
     await closeMockHcm();
@@ -54,6 +58,10 @@ describe('Balance management integration', () => {
   });
 
   describe('GET /balances', () => {
+    it('returns 400 when employeeId query parameter is missing', async () => {
+      await request(app.getHttpServer()).get('/balances').expect(400);
+    });
+
     it('returns an empty array when no balances exist for the employee', async () => {
       const response = await request(app.getHttpServer())
         .get('/balances')

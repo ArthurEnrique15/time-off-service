@@ -1,4 +1,4 @@
-import { Controller, Get, NotFoundException, Param, Query } from '@nestjs/common';
+import { BadRequestException, Controller, Get, NotFoundException, Param, Query } from '@nestjs/common';
 import type { Balance } from '@prisma/client';
 
 import { BalanceService } from '@core/services/balance.service';
@@ -9,6 +9,10 @@ export class BalanceController {
 
   @Get()
   findAll(@Query('employeeId') employeeId: string): Promise<Balance[]> {
+    if (!employeeId) {
+      throw new BadRequestException('employeeId query parameter is required');
+    }
+
     return this.balanceService.findAllByEmployee(employeeId);
   }
 

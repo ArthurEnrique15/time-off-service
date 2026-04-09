@@ -22,12 +22,15 @@ describe('BalanceService', () => {
     findMany?: jest.Mock;
     update?: jest.Mock;
   }): BalanceService => {
+    const balanceDelegate = {
+      findUnique: overrides?.findUnique ?? jest.fn(),
+      findMany: overrides?.findMany ?? jest.fn(),
+      update: overrides?.update ?? jest.fn(),
+    };
+
     const prismaService = {
-      balance: {
-        findUnique: overrides?.findUnique ?? jest.fn(),
-        findMany: overrides?.findMany ?? jest.fn(),
-        update: overrides?.update ?? jest.fn(),
-      },
+      balance: balanceDelegate,
+      $transaction: jest.fn((cb: (tx: unknown) => unknown) => cb({ balance: balanceDelegate })),
     } as unknown as PrismaService;
 
     return new BalanceService(prismaService);
@@ -106,6 +109,9 @@ describe('BalanceService', () => {
       await expect(service.reserve('emp-1', 'loc-1', 3)).rejects.toThrow(
         'Balance not found for employee emp-1 at location loc-1',
       );
+      expect(findUnique).toHaveBeenCalledWith({
+        where: { employeeId_locationId: { employeeId: 'emp-1', locationId: 'loc-1' } },
+      });
     });
 
     it('throws InsufficientBalanceError when available days are insufficient', async () => {
@@ -174,6 +180,9 @@ describe('BalanceService', () => {
 
       expect(result).toEqual(updatedBalance);
     });
+  });
+
+  describe('confirmDeduction', () => {
     it('decreases reserved days permanently, returning the updated balance', async () => {
       const updatedBalance = { ...mockBalance, reservedDays: 2 };
       const findUnique = jest.fn().mockResolvedValue(mockBalance);

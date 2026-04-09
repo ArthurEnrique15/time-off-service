@@ -5,6 +5,8 @@ import { PrismaService } from '@app-prisma/prisma.service';
 
 import { InsufficientBalanceError } from '@shared/errors/insufficient-balance.error';
 
+type TxClient = Parameters<Parameters<PrismaService['$transaction']>[0]>[0];
+
 @Injectable()
 export class BalanceService {
   constructor(private readonly prismaService: PrismaService) {}
@@ -22,76 +24,88 @@ export class BalanceService {
   }
 
   async reserve(employeeId: string, locationId: string, days: number): Promise<Balance> {
-    const balance = await this.findAndValidateExists(employeeId, locationId);
+    return this.prismaService.$transaction(async (tx) => {
+      const balance = await this.findAndValidateExists(tx, employeeId, locationId);
 
-    if (balance.availableDays < days) {
-      throw new InsufficientBalanceError(employeeId, locationId, days, balance.availableDays);
-    }
+      if (balance.availableDays < days) {
+        throw new InsufficientBalanceError(employeeId, locationId, days, balance.availableDays);
+      }
 
-    return this.prismaService.balance.update({
-      where: { employeeId_locationId: { employeeId, locationId } },
-      data: {
-        availableDays: { decrement: days },
-        reservedDays: { increment: days },
-      },
+      return tx.balance.update({
+        where: { employeeId_locationId: { employeeId, locationId } },
+        data: {
+          availableDays: { decrement: days },
+          reservedDays: { increment: days },
+        },
+      });
     });
   }
 
   async releaseReservation(employeeId: string, locationId: string, days: number): Promise<Balance> {
-    const balance = await this.findAndValidateExists(employeeId, locationId);
+    return this.prismaService.$transaction(async (tx) => {
+      const balance = await this.findAndValidateExists(tx, employeeId, locationId);
 
-    if (balance.reservedDays < days) {
-      throw new InsufficientBalanceError(employeeId, locationId, days, balance.reservedDays);
-    }
+      if (balance.reservedDays < days) {
+        throw new InsufficientBalanceError(employeeId, locationId, days, balance.reservedDays);
+      }
 
-    return this.prismaService.balance.update({
-      where: { employeeId_locationId: { employeeId, locationId } },
-      data: {
-        reservedDays: { decrement: days },
-        availableDays: { increment: days },
-      },
+      return tx.balance.update({
+        where: { employeeId_locationId: { employeeId, locationId } },
+        data: {
+          reservedDays: { decrement: days },
+          availableDays: { increment: days },
+        },
+      });
     });
   }
 
   async confirmDeduction(employeeId: string, locationId: string, days: number): Promise<Balance> {
-    const balance = await this.findAndValidateExists(employeeId, locationId);
+    return this.prismaService.$transaction(async (tx) => {
+      const balance = await this.findAndValidateExists(tx, employeeId, locationId);
 
-    if (balance.reservedDays < days) {
-      throw new InsufficientBalanceError(employeeId, locationId, days, balance.reservedDays);
-    }
+      if (balance.reservedDays < days) {
+        throw new InsufficientBalanceError(employeeId, locationId, days, balance.reservedDays);
+      }
 
-    return this.prismaService.balance.update({
-      where: { employeeId_locationId: { employeeId, locationId } },
-      data: {
-        reservedDays: { decrement: days },
-      },
+      return tx.balance.update({
+        where: { employeeId_locationId: { employeeId, locationId } },
+        data: {
+          reservedDays: { decrement: days },
+        },
+      });
     });
   }
 
   async restoreBalance(employeeId: string, locationId: string, days: number): Promise<Balance> {
-    await this.findAndValidateExists(employeeId, locationId);
+    return this.prismaService.$transaction(async (tx) => {
+      await this.findAndValidateExists(tx, employeeId, locationId);
 
-    return this.prismaService.balance.update({
-      where: { employeeId_locationId: { employeeId, locationId } },
-      data: {
-        availableDays: { increment: days },
-      },
+      return tx.balance.update({
+        where: { employeeId_locationId: { employeeId, locationId } },
+        data: {
+          availableDays: { increment: days },
+        },
+      });
     });
   }
 
   async setAvailableDays(employeeId: string, locationId: string, newAvailable: number): Promise<Balance> {
-    await this.findAndValidateExists(employeeId, locationId);
+    return this.prismaService.$transaction(async (tx) => {
+      await this.findAndValidateExists(tx, employeeId, locationId);
 
-    return this.prismaService.balance.update({
-      where: { employeeId_locationId: { employeeId, locationId } },
-      data: {
-        availableDays: newAvailable,
-      },
+      return tx.balance.update({
+        where: { employeeId_locationId: { employeeId, locationId } },
+        data: {
+          availableDays: newAvailable,
+        },
+      });
     });
   }
 
-  private async findAndValidateExists(employeeId: string, locationId: string): Promise<Balance> {
-    const balance = await this.findByEmployeeAndLocation(employeeId, locationId);
+  private async findAndValidateExists(tx: TxClient, employeeId: string, locationId: string): Promise<Balance> {
+    const balance = await tx.balance.findUnique({
+      where: { employeeId_locationId: { employeeId, locationId } },
+    });
 
     if (!balance) {
       throw new NotFoundException(`Balance not found for employee ${employeeId} at location ${locationId}`);

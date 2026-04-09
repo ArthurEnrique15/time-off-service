@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 import type { BalanceService } from '@core/services/balance.service';
 
@@ -36,6 +36,17 @@ describe('BalanceController', () => {
       const controller = new BalanceController(balanceService);
 
       await expect(controller.findAll('emp-1')).resolves.toEqual([]);
+    });
+
+    it('throws BadRequestException when employeeId is not provided', () => {
+      const balanceService = {
+        findAllByEmployee: jest.fn(),
+      } as unknown as BalanceService;
+
+      const controller = new BalanceController(balanceService);
+
+      expect(() => controller.findAll(undefined as unknown as string)).toThrow(BadRequestException);
+      expect(balanceService.findAllByEmployee).not.toHaveBeenCalled();
     });
   });
 
