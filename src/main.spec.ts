@@ -17,6 +17,7 @@ describe('bootstrap', () => {
     const { AppModule } = await import('./app.module');
     const { bootstrap } = await import('./main');
     const app = {
+      useGlobalPipes: jest.fn(),
       get: jest.fn().mockReturnValue({
         get: jest.fn().mockReturnValue(3000),
       }),
@@ -40,6 +41,7 @@ describe('bootstrap', () => {
 
     const { runForModule } = await import('./main');
     const app = {
+      useGlobalPipes: jest.fn(),
       get: jest.fn().mockReturnValue({
         get: jest.fn().mockReturnValue(3000),
       }),
