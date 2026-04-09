@@ -22,8 +22,7 @@
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "stryker": "stryker run --since origin/main",
-    "stryker:all": "stryker run"
+    "stryker": "stryker run"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.15",
