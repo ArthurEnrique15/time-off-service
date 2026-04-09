@@ -1,3 +1,4 @@
+import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 
 jest.mock('@nestjs/core', () => ({
@@ -29,6 +30,7 @@ describe('bootstrap', () => {
     await bootstrap();
 
     expect(NestFactory.create).toHaveBeenCalledWith(AppModule, { cors: true });
+    expect(app.useGlobalPipes).toHaveBeenCalledWith(expect.any(ValidationPipe));
     expect(app.listen).toHaveBeenCalledWith(3000);
   });
 
