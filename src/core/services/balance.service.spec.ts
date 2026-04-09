@@ -1,12 +1,15 @@
 import { NotFoundException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
 
-import type { PrismaService } from '@app-prisma/prisma.service';
+import { PrismaService } from '@app-prisma/prisma.service';
 
 import { BalanceService } from '@core/services/balance.service';
 
 import { InsufficientBalanceError } from '@shared/errors/insufficient-balance.error';
 
 describe('BalanceService', () => {
+  let service: BalanceService;
+
   const mockBalance = {
     id: 'balance-1',
     employeeId: 'emp-1',
@@ -17,41 +20,42 @@ describe('BalanceService', () => {
     updatedAt: new Date(),
   };
 
-  const createService = (overrides?: {
-    findUnique?: jest.Mock;
-    findMany?: jest.Mock;
-    update?: jest.Mock;
-  }): BalanceService => {
-    const balanceDelegate = {
-      findUnique: overrides?.findUnique ?? jest.fn(),
-      findMany: overrides?.findMany ?? jest.fn(),
-      update: overrides?.update ?? jest.fn(),
-    };
-
-    const prismaService = {
-      balance: balanceDelegate,
-      $transaction: jest.fn((cb: (tx: unknown) => unknown) => cb({ balance: balanceDelegate })),
-    } as unknown as PrismaService;
-
-    return new BalanceService(prismaService);
+  const mockPrismaService = {
+    balance: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+    },
+    $transaction: jest.fn(),
   };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockPrismaService.$transaction.mockImplementation(
+      (cb: (tx: typeof mockPrismaService) => unknown) => cb(mockPrismaService),
+    );
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [BalanceService, { provide: PrismaService, useValue: mockPrismaService }],
+    }).compile();
+
+    service = module.get<BalanceService>(BalanceService);
+  });
 
   describe('findByEmployeeAndLocation', () => {
     it('returns the balance when found', async () => {
-      const findUnique = jest.fn().mockResolvedValue(mockBalance);
-      const service = createService({ findUnique });
+      mockPrismaService.balance.findUnique.mockResolvedValue(mockBalance);
 
       const result = await service.findByEmployeeAndLocation('emp-1', 'loc-1');
 
       expect(result).toEqual(mockBalance);
-      expect(findUnique).toHaveBeenCalledWith({
+      expect(mockPrismaService.balance.findUnique).toHaveBeenCalledWith({
         where: { employeeId_locationId: { employeeId: 'emp-1', locationId: 'loc-1' } },
       });
     });
 
     it('returns null when the balance does not exist', async () => {
-      const findUnique = jest.fn().mockResolvedValue(null);
-      const service = createService({ findUnique });
+      mockPrismaService.balance.findUnique.mockResolvedValue(null);
 
       const result = await service.findByEmployeeAndLocation('emp-1', 'loc-1');
 
@@ -62,20 +66,18 @@ describe('BalanceService', () => {
   describe('findAllByEmployee', () => {
     it('returns an array of balances for the employee', async () => {
       const balances = [mockBalance, { ...mockBalance, id: 'balance-2', locationId: 'loc-2' }];
-      const findMany = jest.fn().mockResolvedValue(balances);
-      const service = createService({ findMany });
+      mockPrismaService.balance.findMany.mockResolvedValue(balances);
 
       const result = await service.findAllByEmployee('emp-1');
 
       expect(result).toEqual(balances);
-      expect(findMany).toHaveBeenCalledWith({
+      expect(mockPrismaService.balance.findMany).toHaveBeenCalledWith({
         where: { employeeId: 'emp-1' },
       });
     });
 
     it('returns an empty array when no balances exist', async () => {
-      const findMany = jest.fn().mockResolvedValue([]);
-      const service = createService({ findMany });
+      mockPrismaService.balance.findMany.mockResolvedValue([]);
 
       const result = await service.findAllByEmployee('emp-1');
 
@@ -86,14 +88,13 @@ describe('BalanceService', () => {
   describe('reserve', () => {
     it('decreases available and increases reserved, returning the updated balance', async () => {
       const updatedBalance = { ...mockBalance, availableDays: 17, reservedDays: 8 };
-      const findUnique = jest.fn().mockResolvedValue(mockBalance);
-      const update = jest.fn().mockResolvedValue(updatedBalance);
-      const service = createService({ findUnique, update });
+      mockPrismaService.balance.findUnique.mockResolvedValue(mockBalance);
+      mockPrismaService.balance.update.mockResolvedValue(updatedBalance);
 
       const result = await service.reserve('emp-1', 'loc-1', 3);
 
       expect(result).toEqual(updatedBalance);
-      expect(update).toHaveBeenCalledWith({
+      expect(mockPrismaService.balance.update).toHaveBeenCalledWith({
         where: { employeeId_locationId: { employeeId: 'emp-1', locationId: 'loc-1' } },
         data: {
           availableDays: { decrement: 3 },
@@ -103,21 +104,18 @@ describe('BalanceService', () => {
     });
 
     it('throws NotFoundException when the balance does not exist', async () => {
-      const findUnique = jest.fn().mockResolvedValue(null);
-      const service = createService({ findUnique });
+      mockPrismaService.balance.findUnique.mockResolvedValue(null);
 
       await expect(service.reserve('emp-1', 'loc-1', 3)).rejects.toThrow(
         'Balance not found for employee emp-1 at location loc-1',
       );
-      expect(findUnique).toHaveBeenCalledWith({
+      expect(mockPrismaService.balance.findUnique).toHaveBeenCalledWith({
         where: { employeeId_locationId: { employeeId: 'emp-1', locationId: 'loc-1' } },
       });
     });
 
     it('throws InsufficientBalanceError when available days are insufficient', async () => {
-      const lowBalance = { ...mockBalance, availableDays: 2 };
-      const findUnique = jest.fn().mockResolvedValue(lowBalance);
-      const service = createService({ findUnique });
+      mockPrismaService.balance.findUnique.mockResolvedValue({ ...mockBalance, availableDays: 2 });
 
       await expect(service.reserve('emp-1', 'loc-1', 5)).rejects.toThrow(InsufficientBalanceError);
     });
@@ -125,9 +123,8 @@ describe('BalanceService', () => {
     it('succeeds when requesting exactly the available days', async () => {
       const exactBalance = { ...mockBalance, availableDays: 5, reservedDays: 0 };
       const updatedBalance = { ...exactBalance, availableDays: 0, reservedDays: 5 };
-      const findUnique = jest.fn().mockResolvedValue(exactBalance);
-      const update = jest.fn().mockResolvedValue(updatedBalance);
-      const service = createService({ findUnique, update });
+      mockPrismaService.balance.findUnique.mockResolvedValue(exactBalance);
+      mockPrismaService.balance.update.mockResolvedValue(updatedBalance);
 
       const result = await service.reserve('emp-1', 'loc-1', 5);
 
@@ -138,14 +135,13 @@ describe('BalanceService', () => {
   describe('releaseReservation', () => {
     it('decreases reserved and increases available, returning the updated balance', async () => {
       const updatedBalance = { ...mockBalance, availableDays: 23, reservedDays: 2 };
-      const findUnique = jest.fn().mockResolvedValue(mockBalance);
-      const update = jest.fn().mockResolvedValue(updatedBalance);
-      const service = createService({ findUnique, update });
+      mockPrismaService.balance.findUnique.mockResolvedValue(mockBalance);
+      mockPrismaService.balance.update.mockResolvedValue(updatedBalance);
 
       const result = await service.releaseReservation('emp-1', 'loc-1', 3);
 
       expect(result).toEqual(updatedBalance);
-      expect(update).toHaveBeenCalledWith({
+      expect(mockPrismaService.balance.update).toHaveBeenCalledWith({
         where: { employeeId_locationId: { employeeId: 'emp-1', locationId: 'loc-1' } },
         data: {
           reservedDays: { decrement: 3 },
@@ -155,16 +151,13 @@ describe('BalanceService', () => {
     });
 
     it('throws NotFoundException when the balance does not exist', async () => {
-      const findUnique = jest.fn().mockResolvedValue(null);
-      const service = createService({ findUnique });
+      mockPrismaService.balance.findUnique.mockResolvedValue(null);
 
       await expect(service.releaseReservation('emp-1', 'loc-1', 3)).rejects.toThrow(NotFoundException);
     });
 
     it('throws InsufficientBalanceError when reserved days are insufficient', async () => {
-      const lowReserved = { ...mockBalance, reservedDays: 1 };
-      const findUnique = jest.fn().mockResolvedValue(lowReserved);
-      const service = createService({ findUnique });
+      mockPrismaService.balance.findUnique.mockResolvedValue({ ...mockBalance, reservedDays: 1 });
 
       await expect(service.releaseReservation('emp-1', 'loc-1', 5)).rejects.toThrow(InsufficientBalanceError);
     });
@@ -172,9 +165,8 @@ describe('BalanceService', () => {
     it('succeeds when releasing exactly the reserved days', async () => {
       const exactReserved = { ...mockBalance, reservedDays: 3, availableDays: 10 };
       const updatedBalance = { ...exactReserved, reservedDays: 0, availableDays: 13 };
-      const findUnique = jest.fn().mockResolvedValue(exactReserved);
-      const update = jest.fn().mockResolvedValue(updatedBalance);
-      const service = createService({ findUnique, update });
+      mockPrismaService.balance.findUnique.mockResolvedValue(exactReserved);
+      mockPrismaService.balance.update.mockResolvedValue(updatedBalance);
 
       const result = await service.releaseReservation('emp-1', 'loc-1', 3);
 
@@ -185,14 +177,13 @@ describe('BalanceService', () => {
   describe('confirmDeduction', () => {
     it('decreases reserved days permanently, returning the updated balance', async () => {
       const updatedBalance = { ...mockBalance, reservedDays: 2 };
-      const findUnique = jest.fn().mockResolvedValue(mockBalance);
-      const update = jest.fn().mockResolvedValue(updatedBalance);
-      const service = createService({ findUnique, update });
+      mockPrismaService.balance.findUnique.mockResolvedValue(mockBalance);
+      mockPrismaService.balance.update.mockResolvedValue(updatedBalance);
 
       const result = await service.confirmDeduction('emp-1', 'loc-1', 3);
 
       expect(result).toEqual(updatedBalance);
-      expect(update).toHaveBeenCalledWith({
+      expect(mockPrismaService.balance.update).toHaveBeenCalledWith({
         where: { employeeId_locationId: { employeeId: 'emp-1', locationId: 'loc-1' } },
         data: {
           reservedDays: { decrement: 3 },
@@ -201,16 +192,13 @@ describe('BalanceService', () => {
     });
 
     it('throws NotFoundException when the balance does not exist', async () => {
-      const findUnique = jest.fn().mockResolvedValue(null);
-      const service = createService({ findUnique });
+      mockPrismaService.balance.findUnique.mockResolvedValue(null);
 
       await expect(service.confirmDeduction('emp-1', 'loc-1', 3)).rejects.toThrow(NotFoundException);
     });
 
     it('throws InsufficientBalanceError when reserved days are insufficient', async () => {
-      const lowReserved = { ...mockBalance, reservedDays: 1 };
-      const findUnique = jest.fn().mockResolvedValue(lowReserved);
-      const service = createService({ findUnique });
+      mockPrismaService.balance.findUnique.mockResolvedValue({ ...mockBalance, reservedDays: 1 });
 
       await expect(service.confirmDeduction('emp-1', 'loc-1', 5)).rejects.toThrow(InsufficientBalanceError);
     });
@@ -218,9 +206,8 @@ describe('BalanceService', () => {
     it('succeeds when confirming exactly the reserved days', async () => {
       const exactReserved = { ...mockBalance, reservedDays: 3 };
       const updatedBalance = { ...exactReserved, reservedDays: 0 };
-      const findUnique = jest.fn().mockResolvedValue(exactReserved);
-      const update = jest.fn().mockResolvedValue(updatedBalance);
-      const service = createService({ findUnique, update });
+      mockPrismaService.balance.findUnique.mockResolvedValue(exactReserved);
+      mockPrismaService.balance.update.mockResolvedValue(updatedBalance);
 
       const result = await service.confirmDeduction('emp-1', 'loc-1', 3);
 
@@ -231,14 +218,13 @@ describe('BalanceService', () => {
   describe('restoreBalance', () => {
     it('increases available days, returning the updated balance', async () => {
       const updatedBalance = { ...mockBalance, availableDays: 23 };
-      const findUnique = jest.fn().mockResolvedValue(mockBalance);
-      const update = jest.fn().mockResolvedValue(updatedBalance);
-      const service = createService({ findUnique, update });
+      mockPrismaService.balance.findUnique.mockResolvedValue(mockBalance);
+      mockPrismaService.balance.update.mockResolvedValue(updatedBalance);
 
       const result = await service.restoreBalance('emp-1', 'loc-1', 3);
 
       expect(result).toEqual(updatedBalance);
-      expect(update).toHaveBeenCalledWith({
+      expect(mockPrismaService.balance.update).toHaveBeenCalledWith({
         where: { employeeId_locationId: { employeeId: 'emp-1', locationId: 'loc-1' } },
         data: {
           availableDays: { increment: 3 },
@@ -247,8 +233,7 @@ describe('BalanceService', () => {
     });
 
     it('throws NotFoundException when the balance does not exist', async () => {
-      const findUnique = jest.fn().mockResolvedValue(null);
-      const service = createService({ findUnique });
+      mockPrismaService.balance.findUnique.mockResolvedValue(null);
 
       await expect(service.restoreBalance('emp-1', 'loc-1', 3)).rejects.toThrow(NotFoundException);
     });
@@ -257,14 +242,13 @@ describe('BalanceService', () => {
   describe('setAvailableDays', () => {
     it('overwrites available days, returning the updated balance', async () => {
       const updatedBalance = { ...mockBalance, availableDays: 30 };
-      const findUnique = jest.fn().mockResolvedValue(mockBalance);
-      const update = jest.fn().mockResolvedValue(updatedBalance);
-      const service = createService({ findUnique, update });
+      mockPrismaService.balance.findUnique.mockResolvedValue(mockBalance);
+      mockPrismaService.balance.update.mockResolvedValue(updatedBalance);
 
       const result = await service.setAvailableDays('emp-1', 'loc-1', 30);
 
       expect(result).toEqual(updatedBalance);
-      expect(update).toHaveBeenCalledWith({
+      expect(mockPrismaService.balance.update).toHaveBeenCalledWith({
         where: { employeeId_locationId: { employeeId: 'emp-1', locationId: 'loc-1' } },
         data: {
           availableDays: 30,
@@ -273,8 +257,7 @@ describe('BalanceService', () => {
     });
 
     it('throws NotFoundException when the balance does not exist', async () => {
-      const findUnique = jest.fn().mockResolvedValue(null);
-      const service = createService({ findUnique });
+      mockPrismaService.balance.findUnique.mockResolvedValue(null);
 
       await expect(service.setAvailableDays('emp-1', 'loc-1', 30)).rejects.toThrow(NotFoundException);
     });

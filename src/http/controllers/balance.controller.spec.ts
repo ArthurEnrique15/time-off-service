@@ -1,10 +1,13 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
 
-import type { BalanceService } from '@core/services/balance.service';
+import { BalanceService } from '@core/services/balance.service';
 
 import { BalanceController } from '@http/controllers/balance.controller';
 
 describe('BalanceController', () => {
+  let controller: BalanceController;
+
   const mockBalance = {
     id: 'balance-1',
     employeeId: 'emp-1',
@@ -15,59 +18,53 @@ describe('BalanceController', () => {
     updatedAt: new Date(),
   };
 
+  const mockBalanceService = {
+    findAllByEmployee: jest.fn(),
+    findByEmployeeAndLocation: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [BalanceController],
+      providers: [{ provide: BalanceService, useValue: mockBalanceService }],
+    }).compile();
+
+    controller = module.get<BalanceController>(BalanceController);
+  });
+
   describe('findAll', () => {
     it('delegates to balanceService.findAllByEmployee and returns the result', async () => {
       const balances = [mockBalance];
-      const balanceService = {
-        findAllByEmployee: jest.fn().mockResolvedValue(balances),
-      } as unknown as BalanceService;
-
-      const controller = new BalanceController(balanceService);
+      mockBalanceService.findAllByEmployee.mockResolvedValue(balances);
 
       await expect(controller.findAll('emp-1')).resolves.toEqual(balances);
-      expect(balanceService.findAllByEmployee).toHaveBeenCalledWith('emp-1');
+      expect(mockBalanceService.findAllByEmployee).toHaveBeenCalledWith('emp-1');
     });
 
     it('returns an empty array when the employee has no balances', async () => {
-      const balanceService = {
-        findAllByEmployee: jest.fn().mockResolvedValue([]),
-      } as unknown as BalanceService;
-
-      const controller = new BalanceController(balanceService);
+      mockBalanceService.findAllByEmployee.mockResolvedValue([]);
 
       await expect(controller.findAll('emp-1')).resolves.toEqual([]);
     });
 
     it('throws BadRequestException when employeeId is not provided', () => {
-      const balanceService = {
-        findAllByEmployee: jest.fn(),
-      } as unknown as BalanceService;
-
-      const controller = new BalanceController(balanceService);
-
       expect(() => controller.findAll(undefined as unknown as string)).toThrow(BadRequestException);
-      expect(balanceService.findAllByEmployee).not.toHaveBeenCalled();
+      expect(mockBalanceService.findAllByEmployee).not.toHaveBeenCalled();
     });
   });
 
   describe('findOne', () => {
     it('delegates to balanceService.findByEmployeeAndLocation and returns the balance', async () => {
-      const balanceService = {
-        findByEmployeeAndLocation: jest.fn().mockResolvedValue(mockBalance),
-      } as unknown as BalanceService;
-
-      const controller = new BalanceController(balanceService);
+      mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(mockBalance);
 
       await expect(controller.findOne('emp-1', 'loc-1')).resolves.toEqual(mockBalance);
-      expect(balanceService.findByEmployeeAndLocation).toHaveBeenCalledWith('emp-1', 'loc-1');
+      expect(mockBalanceService.findByEmployeeAndLocation).toHaveBeenCalledWith('emp-1', 'loc-1');
     });
 
     it('throws NotFoundException when the balance does not exist', async () => {
-      const balanceService = {
-        findByEmployeeAndLocation: jest.fn().mockResolvedValue(null),
-      } as unknown as BalanceService;
-
-      const controller = new BalanceController(balanceService);
+      mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(null);
 
       await expect(controller.findOne('emp-1', 'loc-1')).rejects.toThrow(NotFoundException);
     });
