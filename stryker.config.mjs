@@ -12,6 +12,7 @@ const config = {
     'src/core/services/balance.service.ts',
     'src/core/services/balance-audit.service.ts',
     'src/shared/core/either/either.ts',
+    'src/shared/core/custom-http/custom-http.service.ts',
     'src/shared/providers/hcm/hcm.client.ts',
   ],
   thresholds: { high: 100, low: 80, break: 80 },

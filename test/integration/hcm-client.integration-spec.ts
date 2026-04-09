@@ -1,6 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
+import type { HcmClient } from '../../src/shared/providers/hcm/hcm.client';
 import { startMockHcmServer } from '../support/mock-hcm-server';
 import { setTestEnvironment } from '../support/test-env';
 
@@ -8,7 +9,7 @@ describe('HcmClient integration', () => {
   let app: INestApplication;
   let cleanup: () => void;
   let closeMockHcm: () => Promise<void>;
-  let hcmClient: any;
+  let hcmClient: HcmClient;
 
   beforeAll(async () => {
     const mockHcmServer = await startMockHcmServer({

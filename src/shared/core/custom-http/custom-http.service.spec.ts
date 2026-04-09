@@ -1,9 +1,20 @@
 import type { HttpService } from '@nestjs/axios';
+import { Logger } from '@nestjs/common';
 import type { AxiosRequestConfig, AxiosResponse } from 'axios';
 
 import { CustomHttpService } from './custom-http.service';
 
 describe('CustomHttpService', () => {
+  let loggerSpy: jest.SpyInstance;
+
+  beforeAll(() => {
+    loggerSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+  });
+
+  afterAll(() => {
+    loggerSpy.mockRestore();
+  });
+
   const createService = () => {
     const mockAxiosRef = {
       request: jest.fn(),
@@ -47,11 +58,17 @@ describe('CustomHttpService', () => {
       config: {} as any,
     };
 
-    mockAxiosRef.request.mockRejectedValue({ response: errorResponse });
+    mockAxiosRef.request.mockRejectedValue({ response: errorResponse, message: 'Not Found' });
 
     const result = await service.request({ method: 'GET', url: '/missing' });
 
     expect(result).toBe(errorResponse);
+    expect(loggerSpy).toHaveBeenCalledWith('Request error', {
+      method: 'GET',
+      url: '/missing',
+      status: 404,
+      message: 'Not Found',
+    });
   });
 
   it('returns a normalized 500 response when the request fails with a network error', async () => {
@@ -67,5 +84,11 @@ describe('CustomHttpService', () => {
     expect(result.statusText).toBe('Internal Server Error');
     expect(result.data).toEqual({ error: networkError });
     expect(result.headers).toEqual({});
+    expect(loggerSpy).toHaveBeenCalledWith('Request error', {
+      method: 'GET',
+      url: '/unreachable',
+      status: undefined,
+      message: 'ECONNREFUSED',
+    });
   });
 });
