@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { differenceInCalendarDays, parseISO } from 'date-fns';
 
 type MockBalance = {
   employeeId: string;
@@ -102,9 +103,9 @@ export const startMockHcmServer = async (options: MockHcmServerOptions = {}) => 
         return;
       }
 
-      const startDate = new Date(body.startDate);
-      const endDate = new Date(body.endDate);
-      const daysRequested = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      const startDate = parseISO(body.startDate);
+      const endDate = parseISO(body.endDate);
+      const daysRequested = differenceInCalendarDays(endDate, startDate) + 1;
 
       if (balance.availableDays < daysRequested) {
         json(response, 400, {
@@ -149,9 +150,9 @@ export const startMockHcmServer = async (options: MockHcmServerOptions = {}) => 
         return;
       }
 
-      const startDate = new Date(storedRequest.startDate);
-      const endDate = new Date(storedRequest.endDate);
-      const daysRequested = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      const startDate = parseISO(storedRequest.startDate);
+      const endDate = parseISO(storedRequest.endDate);
+      const daysRequested = differenceInCalendarDays(endDate, startDate) + 1;
       const key = `${storedRequest.employeeId}:${storedRequest.locationId}`;
       const balance = balanceStore.get(key);
 

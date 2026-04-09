@@ -101,3 +101,25 @@ that interact with the HCM or use shared infrastructure.
 | CustomHttpService location | `src/shared/core/custom-http/` | Follows GCB directory structure; separate from HCM-specific code |
 | HCM types location | `src/shared/providers/hcm/hcm.types.ts` | Co-located with client; DTOs are HCM-specific |
 | Mock HCM server | Stateful with seedable balances/requests | Allows integration tests to configure realistic scenarios |
+| Date handling library | `date-fns` | See detailed rationale below |
+
+### Date Handling: date-fns
+
+**Context:** The service and its test infrastructure need to calculate the number of calendar days spanned by a `startDate`/`endDate` pair (ISO-8601 strings). This appears in the mock HCM server's `daysRequested` computation and may recur in future features (e.g., F5 reservation logic).
+
+**Alternatives considered:**
+
+| Alternative | Assessment |
+|---|---|
+| Native JS `Date` arithmetic (`getTime()` subtraction) | Works for simple day-diff, but error-prone: DST transitions can shift `getTime()` differences by ±1 hour, producing off-by-one day counts; requires manual millisecond-to-day conversion (`/ 86_400_000`); no parsing utilities; no readable intent |
+| `Temporal` (TC39 proposal) | Correct and DST-safe, but requires a polyfill (not yet Node-native); adds an experimental dependency; not production-ready for this scope |
+| `luxon` / `moment` | Full-featured, but `moment` is in maintenance mode; `luxon` has no tree-shaking; both are heavier than needed |
+| `date-fns` | Pure functions, fully tree-shakeable, TypeScript-first, handles DST correctly via calendar-day semantics, actively maintained, zero-dependency; `differenceInCalendarDays` + `parseISO` cover all current needs |
+
+**Decision:** Use `date-fns`.
+
+**Rationale:**
+- `differenceInCalendarDays` operates on calendar dates (not epoch ms), making it immune to DST-induced off-by-one errors.
+- `parseISO` ensures consistent parsing of ISO-8601 strings regardless of runtime locale.
+- Tree-shakeable: only imported functions are bundled, keeping the production build lean.
+- Consistent with modern NestJS/TypeScript ecosystem conventions.
