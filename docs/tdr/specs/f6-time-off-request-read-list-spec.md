@@ -22,6 +22,7 @@ application-layer service and two REST endpoints on top of it.
 | Single request not found | HTTP 404 | Standard REST |
 | Inline validation | In controller, no class-validator DTOs | Matches every existing controller in the codebase |
 | `page`/`limit` out of range | Default / cap (1..100) | Matches F3 behavior |
+| Paginated response shape | `{ data, pagination: { page, limit, total, totalPages } }` | Consistent with F3 envelope |
 
 ## EARS Requirements
 
