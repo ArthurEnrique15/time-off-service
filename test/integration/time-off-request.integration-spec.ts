@@ -19,6 +19,7 @@ describe('Time-off request creation integration', () => {
     const mockHcmServer = await startMockHcmServer({
       balances: [
         { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, availableDays: 1000 },
+        { employeeId: EMPLOYEE_ID, locationId: 'loc-hcm-low', availableDays: 1 },
       ],
     });
     const testEnvironment = setTestEnvironment({ hcmBaseUrl: mockHcmServer.baseUrl });
@@ -197,6 +198,51 @@ describe('Time-off request creation integration', () => {
         .expect(400);
     });
 
+    it('does not modify the balance when local balance is insufficient', async () => {
+      await prisma.balance.updateMany({
+        where: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID },
+        data: { availableDays: 1 },
+      });
+
+      await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({
+          employeeId: EMPLOYEE_ID,
+          locationId: LOCATION_ID,
+          startDate: '2025-06-01',
+          endDate: '2025-06-05',
+        })
+        .expect(400);
+
+      const balance = await prisma.balance.findUnique({
+        where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID } },
+      });
+
+      expect(balance!.availableDays).toBe(1);
+      expect(balance!.reservedDays).toBe(0);
+    });
+
+    it('returns 201 for a single-day request (startDate equals endDate)', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({
+          employeeId: EMPLOYEE_ID,
+          locationId: LOCATION_ID,
+          startDate: '2025-07-01',
+          endDate: '2025-07-01',
+        })
+        .expect(201);
+
+      expect(response.body.status).toBe('PENDING');
+
+      const balance = await prisma.balance.findUnique({
+        where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID } },
+      });
+
+      expect(balance!.availableDays).toBe(19);
+      expect(balance!.reservedDays).toBe(1);
+    });
+
     describe('when HCM returns INVALID_DIMENSIONS', () => {
       beforeEach(async () => {
         await prisma.balance.create({
@@ -218,6 +264,48 @@ describe('Time-off request creation integration', () => {
             endDate: '2025-06-05',
           })
           .expect(422);
+      });
+
+      it('does not create a TimeOffRequest record when HCM returns INVALID_DIMENSIONS', async () => {
+        await request(app.getHttpServer())
+          .post('/time-off-requests')
+          .send({
+            employeeId: EMPLOYEE_ID,
+            locationId: 'loc-unknown-in-hcm',
+            startDate: '2025-06-01',
+            endDate: '2025-06-05',
+          })
+          .expect(422);
+
+        const record = await prisma.timeOffRequest.findFirst({
+          where: { locationId: 'loc-unknown-in-hcm' },
+        });
+
+        expect(record).toBeNull();
+      });
+    });
+
+    describe('when HCM returns INSUFFICIENT_BALANCE', () => {
+      beforeEach(async () => {
+        await prisma.balance.create({
+          data: { employeeId: EMPLOYEE_ID, locationId: 'loc-hcm-low', availableDays: 20 },
+        });
+      });
+
+      afterEach(async () => {
+        await prisma.balance.deleteMany({ where: { locationId: 'loc-hcm-low' } });
+      });
+
+      it('returns 400 when HCM rejects due to INSUFFICIENT_BALANCE', async () => {
+        await request(app.getHttpServer())
+          .post('/time-off-requests')
+          .send({
+            employeeId: EMPLOYEE_ID,
+            locationId: 'loc-hcm-low',
+            startDate: '2025-06-01',
+            endDate: '2025-06-05', // 5 days, but HCM only has 1 available
+          })
+          .expect(400);
       });
     });
   });
