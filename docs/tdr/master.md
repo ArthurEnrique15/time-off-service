@@ -40,6 +40,9 @@
 - F7 HCM batch sync plan: [f7-hcm-batch-sync-plan.md](./feature-plans/f7-hcm-batch-sync-plan.md)
 - F8 manager approval spec: [f8-manager-approval-spec.md](./specs/f8-manager-approval-spec.md)
 - F8 manager approval plan: [f8-manager-approval-plan.md](./feature-plans/f8-manager-approval-plan.md)
+- F9 HCM sync on approval spec: [f9-hcm-sync-on-approval-spec.md](./specs/f9-hcm-sync-on-approval-spec.md)
+- F9 HCM sync on approval plan: [f9-hcm-sync-on-approval-plan.md](./feature-plans/f9-hcm-sync-on-approval-plan.md)
+- F9 HCM sync on approval agent plan: [2026-04-10-f9-hcm-sync-on-approval-agent-plan.md](./agent-plans/2026-04-10-f9-hcm-sync-on-approval-agent-plan.md)
 - F10 time-off request cancellation spec: [f10-time-off-request-cancellation-spec.md](./specs/f10-time-off-request-cancellation-spec.md)
 - F10 time-off request cancellation plan: [f10-time-off-request-cancellation-plan.md](./feature-plans/f10-time-off-request-cancellation-plan.md)
 - F10 time-off request cancellation agent plan: [2026-04-10-f10-time-off-request-cancellation-agent-plan.md](./agent-plans/2026-04-10-f10-time-off-request-cancellation-agent-plan.md)
@@ -75,6 +78,19 @@ Resolved during F8 brainstorming. These are authoritative for the manager approv
 | HTTP success code | 200 | Default for PATCH; no `@HttpCode` decorator needed |
 | HCM call on approval | None (deferred to F9) | F8 scope is local state only |
 
+## F9 Design Decisions
+
+Resolved during F9 planning. These are authoritative for approval-time HCM sync and downstream consumers.
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| HCM submit timing | On manager approval, not on create | Aligns implementation with roadmap intent |
+| Approval orchestration | HCM-first, then local finalization | Avoids transient local approval followed by rollback |
+| Business HCM rejection | Set request to `REJECTED` and release reservation | Terminal domain mismatch should not remain retryable |
+| Operational HCM failure | Keep request `PENDING` and keep reservation | Retryable outage path preserves intent |
+| `hcmRequestId` persistence | Set only after approval sync succeeds | Prevents storing external IDs for failed approvals |
+| Audit strategy | Add `HCM_SYNC` with `delta: 0` | Separates sync outcomes from balance movements |
+
 ## F10 Design Decisions
 
 Resolved during F10 planning. These are authoritative for the cancellation
@@ -92,7 +108,7 @@ feature and downstream consumers.
 ## Pending Product Definitions
 - Canonical terminology for balances, requests, adjustments, and sync events
 - Time model and date boundary policy
-- HCM sync semantics and idempotency rules
+- HCM sync idempotency rules
 - Error contract and versioning policy
 
 ## F1 Design Decisions
@@ -189,10 +205,10 @@ that create or cancel time-off requests.
 |---|---|---|
 | Orchestration location | `TimeOffRequestService` | Thin controller pattern; injectable, unit-testable |
 | Local balance check order | Before HCM call | Fail fast without external I/O when balance is obviously insufficient |
-| HCM submit timing | After local check, before DB write | HCM is the authoritative source; no local write until HCM confirms |
+| HCM submit timing | Deferred to F9 approval | Create remains a local reservation step |
 | DB write atomicity | Prisma transaction: `reserve()` + `timeOffRequest.create()` | Prevents balance reserved without request record (or vice versa) |
 | Audit log timing | After transaction commits | `requestId` is needed for the audit entry; only available after create |
-| `hcmRequestId` storage | New nullable `String?` on `TimeOffRequest` | Required by F10 (cancellation via `cancelTimeOff(hcmRequestId)`) |
+| `hcmRequestId` storage | Nullable `String?`, populated after approval sync | Required by F9/F10 after HCM accepts the request |
 | `daysRequested` computation | `differenceInCalendarDays(parseISO(endDate), parseISO(startDate)) + 1` via `date-fns` | Immune to DST off-by-ones; consistent with F4 mock server logic |
 | Date parsing | `date-fns/parseISO` throughout | Consistent locale-independent ISO-8601 parsing; no `new Date()` raw construction |
 | `startDate > endDate` check | `isAfter(parseISO(startDate), parseISO(endDate))` via `date-fns` | Avoids raw `Date` comparison pitfalls |

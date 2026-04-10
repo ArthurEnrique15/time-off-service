@@ -158,7 +158,7 @@ describe('HcmClient integration', () => {
 
       expect(balanceBefore.isSuccess()).toBe(true);
       if (balanceBefore.isFailure()) {
-        throw new Error('Expected balanceBefore to be a success result');
+        throw new Error('Expected initial balance lookup to succeed');
       }
       const daysBefore = balanceBefore.value.availableDays;
 
@@ -171,7 +171,7 @@ describe('HcmClient integration', () => {
 
       expect(submitResult.isSuccess()).toBe(true);
       if (submitResult.isFailure()) {
-        throw new Error('Expected submitResult to be a success result');
+        throw new Error('Expected submitTimeOff to succeed');
       }
 
       const cancelResult = await hcmClient.cancelTimeOff(submitResult.value.id);
@@ -182,7 +182,7 @@ describe('HcmClient integration', () => {
 
       expect(balanceAfter.isSuccess()).toBe(true);
       if (balanceAfter.isFailure()) {
-        throw new Error('Expected balanceAfter to be a success result');
+        throw new Error('Expected final balance lookup to succeed');
       }
       expect(balanceAfter.value.availableDays).toBe(daysBefore);
     });

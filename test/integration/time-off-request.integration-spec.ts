@@ -11,6 +11,7 @@ describe('Time-off request integration', () => {
   let prisma: PrismaService;
   let cleanup: () => void;
   let closeMockHcm: () => Promise<void>;
+  let mockHcmHandlers: any;
 
   const EMPLOYEE_ID = 'emp-f5';
   const LOCATION_ID = 'loc-f5';
@@ -26,6 +27,7 @@ describe('Time-off request integration', () => {
 
     cleanup = testEnvironment.cleanup;
     closeMockHcm = mockHcmServer.close;
+    mockHcmHandlers = mockHcmServer.handlers;
 
     execSync('npx prisma migrate deploy', { env: process.env, stdio: 'pipe' });
 
@@ -50,8 +52,15 @@ describe('Time-off request integration', () => {
   });
 
   afterEach(async () => {
+    mockHcmHandlers.submitTimeOff = undefined;
     await prisma.balanceAuditEntry.deleteMany({});
     await prisma.timeOffRequest.deleteMany({});
+    await prisma.balance.deleteMany({
+      where: {
+        employeeId: EMPLOYEE_ID,
+        locationId: { in: ['loc-unknown-in-hcm', 'loc-hcm-low', 'loc-hcm-down'] },
+      },
+    });
     await prisma.balance.updateMany({
       where: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID },
       data: { availableDays: 20, reservedDays: 0 },
@@ -80,7 +89,7 @@ describe('Time-off request integration', () => {
       expect(response.body.employeeId).toBe(EMPLOYEE_ID);
       expect(response.body.locationId).toBe(LOCATION_ID);
       expect(response.body.status).toBe('PENDING');
-      expect(response.body.hcmRequestId).not.toBeNull();
+      expect(response.body.hcmRequestId).toBeNull();
       expect(response.body.id).toBeDefined();
     });
 
@@ -101,7 +110,7 @@ describe('Time-off request integration', () => {
 
       expect(record).not.toBeNull();
       expect(record!.status).toBe('PENDING');
-      expect(record!.hcmRequestId).not.toBeNull();
+      expect(record!.hcmRequestId).toBeNull();
     });
 
     it('decrements availableDays and increments reservedDays on the balance', async () => {
@@ -241,19 +250,18 @@ describe('Time-off request integration', () => {
       expect(balance!.reservedDays).toBe(1);
     });
 
-    describe('when HCM returns INVALID_DIMENSIONS', () => {
+    describe('when HCM would reject during later approval', () => {
       beforeEach(async () => {
-        await prisma.balance.create({
-          data: { employeeId: EMPLOYEE_ID, locationId: 'loc-unknown-in-hcm', availableDays: 20 },
+        await prisma.balance.createMany({
+          data: [
+            { employeeId: EMPLOYEE_ID, locationId: 'loc-unknown-in-hcm', availableDays: 20 },
+            { employeeId: EMPLOYEE_ID, locationId: 'loc-hcm-low', availableDays: 20 },
+          ],
         });
       });
 
-      afterEach(async () => {
-        await prisma.balance.deleteMany({ where: { locationId: 'loc-unknown-in-hcm' } });
-      });
-
-      it('returns 422 when HCM rejects due to INVALID_DIMENSIONS', async () => {
-        await request(app.getHttpServer())
+      it('still creates a pending request when the location is unknown to HCM', async () => {
+        const response = await request(app.getHttpServer())
           .post('/time-off-requests')
           .send({
             employeeId: EMPLOYEE_ID,
@@ -261,41 +269,14 @@ describe('Time-off request integration', () => {
             startDate: '2025-06-01',
             endDate: '2025-06-05',
           })
-          .expect(422);
+          .expect(201);
+
+        expect(response.body.status).toBe('PENDING');
+        expect(response.body.hcmRequestId).toBeNull();
       });
 
-      it('does not create a TimeOffRequest record when HCM returns INVALID_DIMENSIONS', async () => {
-        await request(app.getHttpServer())
-          .post('/time-off-requests')
-          .send({
-            employeeId: EMPLOYEE_ID,
-            locationId: 'loc-unknown-in-hcm',
-            startDate: '2025-06-01',
-            endDate: '2025-06-05',
-          })
-          .expect(422);
-
-        const record = await prisma.timeOffRequest.findFirst({
-          where: { locationId: 'loc-unknown-in-hcm' },
-        });
-
-        expect(record).toBeNull();
-      });
-    });
-
-    describe('when HCM returns INSUFFICIENT_BALANCE', () => {
-      beforeEach(async () => {
-        await prisma.balance.create({
-          data: { employeeId: EMPLOYEE_ID, locationId: 'loc-hcm-low', availableDays: 20 },
-        });
-      });
-
-      afterEach(async () => {
-        await prisma.balance.deleteMany({ where: { locationId: 'loc-hcm-low' } });
-      });
-
-      it('returns 400 when HCM rejects due to INSUFFICIENT_BALANCE', async () => {
-        await request(app.getHttpServer())
+      it('still creates a pending request when HCM would later reject for insufficient balance', async () => {
+        const response = await request(app.getHttpServer())
           .post('/time-off-requests')
           .send({
             employeeId: EMPLOYEE_ID,
@@ -303,7 +284,15 @@ describe('Time-off request integration', () => {
             startDate: '2025-06-01',
             endDate: '2025-06-05',
           })
-          .expect(400);
+          .expect(201);
+
+        const record = await prisma.timeOffRequest.findFirst({
+          where: { id: response.body.id },
+        });
+
+        expect(record).not.toBeNull();
+        expect(record!.status).toBe('PENDING');
+        expect(record!.hcmRequestId).toBeNull();
       });
     });
   });
@@ -501,12 +490,15 @@ describe('Time-off request integration', () => {
         .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-08-01', endDate: '2025-08-05' })
         .expect(201);
 
+      expect(createRes.body.hcmRequestId).toBeNull();
+
       const response = await request(app.getHttpServer())
         .patch(`/time-off-requests/${createRes.body.id}/approve`)
         .expect(200);
 
       expect(response.body.status).toBe('APPROVED');
       expect(response.body.id).toBe(createRes.body.id);
+      expect(response.body.hcmRequestId).toBeTruthy();
     });
 
     it('decrements reservedDays (removes the reservation) on approve', async () => {
@@ -546,6 +538,28 @@ describe('Time-off request integration', () => {
       expect(auditEntries).toHaveLength(1);
       expect(auditEntries[0].delta).toBe(-5);
       expect(auditEntries[0].requestId).toBe(createRes.body.id);
+    });
+
+    it('records an HCM_SYNC audit entry on approval success', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-08-01', endDate: '2025-08-05' })
+        .expect(201);
+
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/approve`).expect(200);
+
+      const balance = await prisma.balance.findUnique({
+        where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID } },
+      });
+
+      const auditEntry = await prisma.balanceAuditEntry.findFirst({
+        where: { balanceId: balance!.id, reason: 'HCM_SYNC' },
+      });
+
+      expect(auditEntry).not.toBeNull();
+      expect(auditEntry!.delta).toBe(0);
+      expect(auditEntry!.reference).toContain('operation=approve');
+      expect(auditEntry!.reference).toContain('outcome=success');
     });
 
     it('records actorId in the audit entry when provided', async () => {
@@ -594,6 +608,119 @@ describe('Time-off request integration', () => {
       await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/reject`).expect(200);
 
       await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/approve`).expect(409);
+    });
+
+    describe('when HCM rejects the approval with INVALID_DIMENSIONS', () => {
+      beforeEach(async () => {
+        await prisma.balance.create({
+          data: { employeeId: EMPLOYEE_ID, locationId: 'loc-unknown-in-hcm', availableDays: 20 },
+        });
+      });
+
+      it('returns 422, marks the request REJECTED, and releases the reservation', async () => {
+        const createRes = await request(app.getHttpServer())
+          .post('/time-off-requests')
+          .send({
+            employeeId: EMPLOYEE_ID,
+            locationId: 'loc-unknown-in-hcm',
+            startDate: '2025-08-01',
+            endDate: '2025-08-05',
+          })
+          .expect(201);
+
+        await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/approve`).expect(422);
+
+        const record = await prisma.timeOffRequest.findUnique({ where: { id: createRes.body.id } });
+        const balance = await prisma.balance.findUnique({
+          where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: 'loc-unknown-in-hcm' } },
+        });
+
+        expect(record!.status).toBe('REJECTED');
+        expect(record!.hcmRequestId).toBeNull();
+        expect(balance!.availableDays).toBe(20);
+        expect(balance!.reservedDays).toBe(0);
+      });
+    });
+
+    describe('when HCM rejects the approval with INSUFFICIENT_BALANCE', () => {
+      beforeEach(async () => {
+        await prisma.balance.create({
+          data: { employeeId: EMPLOYEE_ID, locationId: 'loc-hcm-low', availableDays: 20 },
+        });
+      });
+
+      it('returns 400, marks the request REJECTED, and records rejection sync audit data', async () => {
+        const createRes = await request(app.getHttpServer())
+          .post('/time-off-requests')
+          .send({
+            employeeId: EMPLOYEE_ID,
+            locationId: 'loc-hcm-low',
+            startDate: '2025-08-01',
+            endDate: '2025-08-05',
+          })
+          .expect(201);
+
+        await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/approve`).expect(400);
+
+        const record = await prisma.timeOffRequest.findUnique({ where: { id: createRes.body.id } });
+        const balance = await prisma.balance.findUnique({
+          where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: 'loc-hcm-low' } },
+        });
+        const auditEntries = await prisma.balanceAuditEntry.findMany({
+          where: { balanceId: balance!.id },
+          orderBy: { createdAt: 'asc' },
+        });
+
+        expect(record!.status).toBe('REJECTED');
+        expect(record!.hcmRequestId).toBeNull();
+        expect(balance!.availableDays).toBe(20);
+        expect(balance!.reservedDays).toBe(0);
+        expect(auditEntries.map((entry) => entry.reason)).toEqual(['RESERVATION', 'RESERVATION_RELEASE', 'HCM_SYNC']);
+      });
+    });
+
+    describe('when HCM is unavailable during approval', () => {
+      beforeEach(async () => {
+        await prisma.balance.create({
+          data: { employeeId: EMPLOYEE_ID, locationId: 'loc-hcm-down', availableDays: 20 },
+        });
+        mockHcmHandlers.submitTimeOff = (body: any) =>
+          body.locationId === 'loc-hcm-down'
+            ? {
+                statusCode: 500,
+                body: { message: 'downstream unavailable' },
+              }
+            : undefined;
+      });
+
+      it('returns 503, keeps the request PENDING, and keeps the reservation intact', async () => {
+        const createRes = await request(app.getHttpServer())
+          .post('/time-off-requests')
+          .send({
+            employeeId: EMPLOYEE_ID,
+            locationId: 'loc-hcm-down',
+            startDate: '2025-08-01',
+            endDate: '2025-08-05',
+          })
+          .expect(201);
+
+        await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/approve`).expect(503);
+
+        const record = await prisma.timeOffRequest.findUnique({ where: { id: createRes.body.id } });
+        const balance = await prisma.balance.findUnique({
+          where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: 'loc-hcm-down' } },
+        });
+        const syncEntry = await prisma.balanceAuditEntry.findFirst({
+          where: { balanceId: balance!.id, reason: 'HCM_SYNC' },
+        });
+
+        expect(record!.status).toBe('PENDING');
+        expect(record!.hcmRequestId).toBeNull();
+        expect(balance!.availableDays).toBe(15);
+        expect(balance!.reservedDays).toBe(5);
+        expect(syncEntry).not.toBeNull();
+        expect(syncEntry!.reference).toContain('code=UNKNOWN');
+      });
     });
   });
 
