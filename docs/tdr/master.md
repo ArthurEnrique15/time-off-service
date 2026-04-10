@@ -50,70 +50,6 @@
 - F11 error handling plan: [f11-error-handling-plan.md](./feature-plans/f11-error-handling-plan.md)
 - F11 error handling agent plan: [2026-04-10-f11-error-handling-agent-plan.md](./agent-plans/2026-04-10-f11-error-handling-agent-plan.md)
 
-## F7 Design Decisions
-
-Resolved during F7 brainstorming. These are authoritative for the HCM batch sync feature and downstream consumers.
-
-| Decision | Choice | Rationale |
-|---|---|---|
-| New balance (unknown pair) | Upsert — create locally | Batch is authoritative; unknown pairs are valid new data |
-| Conflict handling (PENDING request + balance change) | Flag in response, still apply update | Balance stays accurate; caller can act on conflict list |
-| Partial failure | Continue processing all entries, collect errors | No partial-batch aborts; response reports every outcome |
-| Response body | Summary + conflict list + error list | Actionable response; callers can correlate outcomes |
-| Balance unchanged | Skip (no update, no audit, no conflict check) | No-op avoids noise in audit trail |
-| Per-entry transactions | Each entry in its own `$transaction` | Isolates failures; aligns with partial-success policy |
-| Audit delta for new balances | `availableDays` (as if prior was 0) | Consistent representation; full value created from nothing |
-| Mock HCM extension | Add `GET /balances` returning all seeded balances | Enables realistic end-to-end integration test flow |
-| `upsertBalance` location | Added to `BalanceService` | Keeps all balance mutations in one place |
-| HTTP status on partial success | 200 | Batch ran to completion; body describes individual outcomes |
-| Input validation | class-validator DTOs + global `ValidationPipe` | F7 is first feature with nested array validation; DTOs are the right tool |
-
-## F8 Design Decisions
-
-Resolved during F8 brainstorming. These are authoritative for the manager approval feature and downstream consumers.
-
-| Decision | Choice | Rationale |
-|---|---|---|
-| Non-PENDING status error | 409 Conflict | Signals resource state conflict, not a validation error |
-| Request body | Optional `actorId` string | Audit trail supports actorId; auth is out of scope so no required field |
-| Balance ID for audit | Returned from InTx method | InTx methods return updated Balance; ID is stable across update |
-| Return type | Updated `TimeOffRequest` | Standard REST convention for PATCH |
-| HTTP success code | 200 | Default for PATCH; no `@HttpCode` decorator needed |
-| HCM call on approval | None (deferred to F9) | F8 scope is local state only |
-
-## F9 Design Decisions
-
-Resolved during F9 planning. These are authoritative for approval-time HCM sync and downstream consumers.
-
-| Decision | Choice | Rationale |
-|---|---|---|
-| HCM submit timing | On manager approval, not on create | Aligns implementation with roadmap intent |
-| Approval orchestration | HCM-first, then local finalization | Avoids transient local approval followed by rollback |
-| Business HCM rejection | Set request to `REJECTED` and release reservation | Terminal domain mismatch should not remain retryable |
-| Operational HCM failure | Keep request `PENDING` and keep reservation | Retryable outage path preserves intent |
-| `hcmRequestId` persistence | Set only after approval sync succeeds | Prevents storing external IDs for failed approvals |
-| Audit strategy | Add `HCM_SYNC` with `delta: 0` | Separates sync outcomes from balance movements |
-
-## F10 Design Decisions
-
-Resolved during F10 planning. These are authoritative for the cancellation
-feature and downstream consumers.
-
-| Decision | Choice | Rationale |
-|---|---|---|
-| Cancellation flow | Remote-first | HCM is authoritative for cancellation; local state should not change first |
-| Eligible status | `APPROVED` only | Keeps cancellation limited to finalized, approved requests |
-| Missing `hcmRequestId` | 409 Conflict | Approved request without a remote ID indicates state mismatch |
-| Request body | Optional `actorId` string | Reuses the F8 audit attribution pattern |
-| HCM `NOT_FOUND` mapping | 409 Conflict with no local mutation | Signals disagreement between local and HCM state |
-| HCM `UNKNOWN` mapping | 503 Service Unavailable with no local mutation | Downstream failure should not change local records |
-
-## Pending Product Definitions
-- Canonical terminology for balances, requests, adjustments, and sync events
-- Time model and date boundary policy
-- HCM sync idempotency rules
-- Error contract and versioning policy
-
 ## F1 Design Decisions
 
 Resolved during F1 brainstorming. These are authoritative for all downstream features.
@@ -234,6 +170,64 @@ that read time-off requests.
 | Inline validation | In controller, no class-validator DTOs | Matches every existing controller |
 | `page`/`limit` out of range | Default / cap (1..100) | Matches F3 behavior |
 | Paginated response shape | `{ data, pagination: { page, limit, total, totalPages } }` | Consistent with F3 envelope |
+
+## F7 Design Decisions
+
+Resolved during F7 brainstorming. These are authoritative for the HCM batch sync feature and downstream consumers.
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| New balance (unknown pair) | Upsert — create locally | Batch is authoritative; unknown pairs are valid new data |
+| Conflict handling (PENDING request + balance change) | Flag in response, still apply update | Balance stays accurate; caller can act on conflict list |
+| Partial failure | Continue processing all entries, collect errors | No partial-batch aborts; response reports every outcome |
+| Response body | Summary + conflict list + error list | Actionable response; callers can correlate outcomes |
+| Balance unchanged | Skip (no update, no audit, no conflict check) | No-op avoids noise in audit trail |
+| Per-entry transactions | Each entry in its own `$transaction` | Isolates failures; aligns with partial-success policy |
+| Audit delta for new balances | `availableDays` (as if prior was 0) | Consistent representation; full value created from nothing |
+| Mock HCM extension | Add `GET /balances` returning all seeded balances | Enables realistic end-to-end integration test flow |
+| `upsertBalance` location | Added to `BalanceService` | Keeps all balance mutations in one place |
+| HTTP status on partial success | 200 | Batch ran to completion; body describes individual outcomes |
+| Input validation | class-validator DTOs + global `ValidationPipe` | F7 is first feature with nested array validation; DTOs are the right tool |
+
+## F8 Design Decisions
+
+Resolved during F8 brainstorming. These are authoritative for the manager approval feature and downstream consumers.
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Non-PENDING status error | 409 Conflict | Signals resource state conflict, not a validation error |
+| Request body | Optional `actorId` string | Audit trail supports actorId; auth is out of scope so no required field |
+| Balance ID for audit | Returned from InTx method | InTx methods return updated Balance; ID is stable across update |
+| Return type | Updated `TimeOffRequest` | Standard REST convention for PATCH |
+| HTTP success code | 200 | Default for PATCH; no `@HttpCode` decorator needed |
+| HCM call on approval | None (deferred to F9) | F8 scope is local state only |
+
+## F9 Design Decisions
+
+Resolved during F9 planning. These are authoritative for approval-time HCM sync and downstream consumers.
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| HCM submit timing | On manager approval, not on create | Aligns implementation with roadmap intent |
+| Approval orchestration | HCM-first, then local finalization | Avoids transient local approval followed by rollback |
+| Business HCM rejection | Set request to `REJECTED` and release reservation | Terminal domain mismatch should not remain retryable |
+| Operational HCM failure | Keep request `PENDING` and keep reservation | Retryable outage path preserves intent |
+| `hcmRequestId` persistence | Set only after approval sync succeeds | Prevents storing external IDs for failed approvals |
+| Audit strategy | Add `HCM_SYNC` with `delta: 0` | Separates sync outcomes from balance movements |
+
+## F10 Design Decisions
+
+Resolved during F10 planning. These are authoritative for the cancellation
+feature and downstream consumers.
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Cancellation flow | Remote-first | HCM is authoritative for cancellation; local state should not change first |
+| Eligible status | `APPROVED` only | Keeps cancellation limited to finalized, approved requests |
+| Missing `hcmRequestId` | 409 Conflict | Approved request without a remote ID indicates state mismatch |
+| Request body | Optional `actorId` string | Reuses the F8 audit attribution pattern |
+| HCM `NOT_FOUND` mapping | 409 Conflict with no local mutation | Signals disagreement between local and HCM state |
+| HCM `UNKNOWN` mapping | 503 Service Unavailable with no local mutation | Downstream failure should not change local records |
 
 ## F11 Design Decisions
 
