@@ -57,6 +57,7 @@ export class TimeOffRequestController {
   }
 
   @Patch(':id/approve')
+  @HttpCode(HttpStatus.OK)
   approve(
     @Param('id') id: string,
     @Body() dto: ApproveRejectTimeOffRequestDto,
@@ -65,6 +66,7 @@ export class TimeOffRequestController {
   }
 
   @Patch(':id/reject')
+  @HttpCode(HttpStatus.OK)
   reject(
     @Param('id') id: string,
     @Body() dto: ApproveRejectTimeOffRequestDto,

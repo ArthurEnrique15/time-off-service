@@ -667,6 +667,28 @@ describe('Time-off request integration', () => {
         .expect(404);
     });
 
+    it('records actorId in the audit entry when provided', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-08-01', endDate: '2025-08-05' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/time-off-requests/${createRes.body.id}/reject`)
+        .send({ actorId: 'manager-2' })
+        .expect(200);
+
+      const balance = await prisma.balance.findUnique({
+        where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID } },
+      });
+
+      const auditEntry = await prisma.balanceAuditEntry.findFirst({
+        where: { balanceId: balance!.id, reason: 'RESERVATION_RELEASE' },
+      });
+
+      expect(auditEntry!.actorId).toBe('manager-2');
+    });
+
     it('returns 409 when request is already REJECTED', async () => {
       const createRes = await request(app.getHttpServer())
         .post('/time-off-requests')

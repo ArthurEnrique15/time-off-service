@@ -567,6 +567,24 @@ describe('TimeOffRequestService — reject', () => {
     );
   });
 
+  it('throws ConflictException when request status is REJECTED', async () => {
+    mockPrismaService.timeOffRequest.findUnique.mockResolvedValue({ ...mockRequest, status: 'REJECTED' });
+    const service = createService();
+
+    await expect(service.reject('req-1')).rejects.toThrow(
+      new ConflictException('Cannot reject a REJECTED request'),
+    );
+  });
+
+  it('throws ConflictException when request status is CANCELLED', async () => {
+    mockPrismaService.timeOffRequest.findUnique.mockResolvedValue({ ...mockRequest, status: 'CANCELLED' });
+    const service = createService();
+
+    await expect(service.reject('req-1')).rejects.toThrow(
+      new ConflictException('Cannot reject a CANCELLED request'),
+    );
+  });
+
   it('calls tx.timeOffRequest.update with REJECTED, calls releaseReservationInTx, calls recordEntryInTx with RESERVATION_RELEASE and delta +days', async () => {
     const service = createService();
 

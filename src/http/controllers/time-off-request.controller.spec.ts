@@ -177,5 +177,21 @@ describe('TimeOffRequestController', () => {
       expect(result).toEqual(rejectedRequest);
       expect(mockTimeOffRequestService.reject).toHaveBeenCalledWith('req-1', 'manager-1');
     });
+
+    it('propagates NotFoundException from service', async () => {
+      mockTimeOffRequestService.reject.mockRejectedValue(
+        new NotFoundException('Time-off request nonexistent not found'),
+      );
+
+      await expect(controller.reject('nonexistent', { actorId: 'manager-1' })).rejects.toThrow(NotFoundException);
+    });
+
+    it('propagates ConflictException from service', async () => {
+      mockTimeOffRequestService.reject.mockRejectedValue(
+        new ConflictException('Cannot reject a REJECTED request'),
+      );
+
+      await expect(controller.reject('req-1', { actorId: 'manager-1' })).rejects.toThrow(ConflictException);
+    });
   });
 });
