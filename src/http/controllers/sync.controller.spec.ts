@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 
 import { BatchSyncService } from '@core/services/batch-sync.service';
+import { BatchSyncRequestDto } from '@http/dto/batch-sync.dto';
 import { SyncController } from '@http/controllers/sync.controller';
 
 describe('SyncController', () => {
@@ -32,7 +33,7 @@ describe('SyncController', () => {
       mockBatchSyncService.syncBatch.mockResolvedValue(mockResult);
 
       const dto = { balances: [{ employeeId: 'emp-1', locationId: 'loc-1', availableDays: 10 }] };
-      const result = await controller.syncBatch(dto as any);
+      const result = await controller.syncBatch(dto as unknown as BatchSyncRequestDto);
 
       expect(result).toEqual(mockResult);
       expect(mockBatchSyncService.syncBatch).toHaveBeenCalledWith(dto.balances);
