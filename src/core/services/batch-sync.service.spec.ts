@@ -165,5 +165,26 @@ describe('BatchSyncService', () => {
 
       expect(result.summary).toEqual({ created: 1, updated: 1, unchanged: 1, conflicted: 0, failed: 0 });
     });
+
+    it('does not skip a newly created balance with zero availableDays — records audit and counts as created:1', async () => {
+      const { service, balanceService, auditService, prismaService } = createService();
+      (balanceService.upsertBalance as jest.Mock).mockResolvedValue({
+        balance: { ...mockBalance, id: 'balance-zero', availableDays: 0 },
+        previousAvailableDays: 0,
+        wasCreated: true,
+      });
+      (auditService.recordEntry as jest.Mock).mockResolvedValue({});
+      (prismaService.timeOffRequest.findMany as jest.Mock).mockResolvedValue([]);
+
+      const result = await service.syncBatch([{ employeeId: 'emp-1', locationId: 'loc-1', availableDays: 0 }]);
+
+      expect(result.summary).toEqual({ created: 1, updated: 0, unchanged: 0, conflicted: 0, failed: 0 });
+      expect(auditService.recordEntry).toHaveBeenCalledWith({
+        balanceId: 'balance-zero',
+        delta: 0,
+        reason: 'BATCH_SYNC',
+        reference: 'HCM batch sync',
+      });
+    });
   });
 });
