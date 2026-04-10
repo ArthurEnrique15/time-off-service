@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
 import type { PaginatedRequestList } from '@core/services/time-off-request.service';
@@ -30,6 +30,8 @@ describe('TimeOffRequestController', () => {
     create: jest.fn(),
     findById: jest.fn().mockResolvedValue(mockRequest),
     findAllByEmployee: jest.fn().mockResolvedValue(mockPaginatedResponse),
+    approve: jest.fn(),
+    reject: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -130,6 +132,50 @@ describe('TimeOffRequestController', () => {
 
       const call = (mockTimeOffRequestService.findAllByEmployee as jest.Mock).mock.calls[0][1];
       expect(call.limit).toBe(20);
+    });
+  });
+
+  describe('approve', () => {
+    it('delegates to service with id and actorId, returns result', async () => {
+      const approvedRequest = { ...mockRequest, status: 'APPROVED' };
+      mockTimeOffRequestService.approve.mockResolvedValue(approvedRequest);
+
+      const result = await controller.approve('req-1', { actorId: 'manager-1' });
+
+      expect(result).toEqual(approvedRequest);
+      expect(mockTimeOffRequestService.approve).toHaveBeenCalledWith('req-1', 'manager-1');
+    });
+
+    it('propagates NotFoundException from service', async () => {
+      mockTimeOffRequestService.approve.mockRejectedValue(
+        new NotFoundException('Time-off request req-1 not found'),
+      );
+
+      await expect(controller.approve('nonexistent', { actorId: 'manager-1' })).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('propagates ConflictException from service', async () => {
+      mockTimeOffRequestService.approve.mockRejectedValue(
+        new ConflictException('Cannot approve a APPROVED request'),
+      );
+
+      await expect(controller.approve('req-1', { actorId: 'manager-1' })).rejects.toThrow(
+        ConflictException,
+      );
+    });
+  });
+
+  describe('reject', () => {
+    it('delegates to service with id and actorId, returns result', async () => {
+      const rejectedRequest = { ...mockRequest, status: 'REJECTED' };
+      mockTimeOffRequestService.reject.mockResolvedValue(rejectedRequest);
+
+      const result = await controller.reject('req-1', { actorId: 'manager-1' });
+
+      expect(result).toEqual(rejectedRequest);
+      expect(mockTimeOffRequestService.reject).toHaveBeenCalledWith('req-1', 'manager-1');
     });
   });
 });
