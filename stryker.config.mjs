@@ -18,6 +18,7 @@ const config = {
     'src/core/services/batch-sync.service.ts',
     'src/http/controllers/time-off-request.controller.ts',
     'src/http/controllers/sync.controller.ts',
+    'src/http/filters/all-exceptions.filter.ts',
   ],
   thresholds: { high: 100, low: 80, break: 80 },
 };
