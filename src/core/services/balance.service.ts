@@ -69,6 +69,37 @@ export class BalanceService {
     });
   }
 
+  async confirmDeductionInTx(tx: TxClient, employeeId: string, locationId: string, days: number): Promise<Balance> {
+    const balance = await this.findAndValidateExists(tx, employeeId, locationId);
+
+    if (balance.reservedDays < days) {
+      throw new InsufficientBalanceError(employeeId, locationId, days, balance.reservedDays);
+    }
+
+    return tx.balance.update({
+      where: { employeeId_locationId: { employeeId, locationId } },
+      data: {
+        reservedDays: { decrement: days },
+      },
+    });
+  }
+
+  async releaseReservationInTx(tx: TxClient, employeeId: string, locationId: string, days: number): Promise<Balance> {
+    const balance = await this.findAndValidateExists(tx, employeeId, locationId);
+
+    if (balance.reservedDays < days) {
+      throw new InsufficientBalanceError(employeeId, locationId, days, balance.reservedDays);
+    }
+
+    return tx.balance.update({
+      where: { employeeId_locationId: { employeeId, locationId } },
+      data: {
+        reservedDays: { decrement: days },
+        availableDays: { increment: days },
+      },
+    });
+  }
+
   async confirmDeduction(employeeId: string, locationId: string, days: number): Promise<Balance> {
     return this.prismaService.$transaction(async (tx) => {
       const balance = await this.findAndValidateExists(tx, employeeId, locationId);

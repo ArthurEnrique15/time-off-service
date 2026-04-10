@@ -286,6 +286,75 @@ describe('BalanceService', () => {
     });
   });
 
+  describe('confirmDeductionInTx', () => {
+    it('uses the provided tx to decrement reservedDays only, returning the updated balance', async () => {
+      const updatedBalance = { ...mockBalance, reservedDays: 2 };
+      mockPrismaService.balance.findUnique.mockResolvedValue(mockBalance);
+      mockPrismaService.balance.update.mockResolvedValue(updatedBalance);
+
+      const result = await service.confirmDeductionInTx(mockPrismaService as any, 'emp-1', 'loc-1', 3);
+
+      expect(result).toEqual(updatedBalance);
+      expect(mockPrismaService.balance.update).toHaveBeenCalledWith({
+        where: { employeeId_locationId: { employeeId: 'emp-1', locationId: 'loc-1' } },
+        data: {
+          reservedDays: { decrement: 3 },
+        },
+      });
+    });
+
+    it('throws NotFoundException when the balance does not exist in tx', async () => {
+      mockPrismaService.balance.findUnique.mockResolvedValue(null);
+
+      await expect(service.confirmDeductionInTx(mockPrismaService as any, 'emp-1', 'loc-1', 3)).rejects.toThrow(
+        'Balance not found for employee emp-1 at location loc-1',
+      );
+    });
+
+    it('throws InsufficientBalanceError when reserved days are insufficient in tx', async () => {
+      mockPrismaService.balance.findUnique.mockResolvedValue({ ...mockBalance, reservedDays: 1 });
+
+      await expect(service.confirmDeductionInTx(mockPrismaService as any, 'emp-1', 'loc-1', 5)).rejects.toThrow(
+        InsufficientBalanceError,
+      );
+    });
+  });
+
+  describe('releaseReservationInTx', () => {
+    it('uses the provided tx to decrement reservedDays and increment availableDays, returning the updated balance', async () => {
+      const updatedBalance = { ...mockBalance, availableDays: 23, reservedDays: 2 };
+      mockPrismaService.balance.findUnique.mockResolvedValue(mockBalance);
+      mockPrismaService.balance.update.mockResolvedValue(updatedBalance);
+
+      const result = await service.releaseReservationInTx(mockPrismaService as any, 'emp-1', 'loc-1', 3);
+
+      expect(result).toEqual(updatedBalance);
+      expect(mockPrismaService.balance.update).toHaveBeenCalledWith({
+        where: { employeeId_locationId: { employeeId: 'emp-1', locationId: 'loc-1' } },
+        data: {
+          reservedDays: { decrement: 3 },
+          availableDays: { increment: 3 },
+        },
+      });
+    });
+
+    it('throws NotFoundException when the balance does not exist in tx', async () => {
+      mockPrismaService.balance.findUnique.mockResolvedValue(null);
+
+      await expect(service.releaseReservationInTx(mockPrismaService as any, 'emp-1', 'loc-1', 3)).rejects.toThrow(
+        'Balance not found for employee emp-1 at location loc-1',
+      );
+    });
+
+    it('throws InsufficientBalanceError when reserved days are insufficient in tx', async () => {
+      mockPrismaService.balance.findUnique.mockResolvedValue({ ...mockBalance, reservedDays: 1 });
+
+      await expect(service.releaseReservationInTx(mockPrismaService as any, 'emp-1', 'loc-1', 5)).rejects.toThrow(
+        InsufficientBalanceError,
+      );
+    });
+  });
+
   describe('setAvailableDays', () => {
     it('overwrites available days, returning the updated balance', async () => {
       const updatedBalance = { ...mockBalance, availableDays: 30 };
