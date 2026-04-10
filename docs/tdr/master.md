@@ -46,6 +46,9 @@
 - F10 time-off request cancellation spec: [f10-time-off-request-cancellation-spec.md](./specs/f10-time-off-request-cancellation-spec.md)
 - F10 time-off request cancellation plan: [f10-time-off-request-cancellation-plan.md](./feature-plans/f10-time-off-request-cancellation-plan.md)
 - F10 time-off request cancellation agent plan: [2026-04-10-f10-time-off-request-cancellation-agent-plan.md](./agent-plans/2026-04-10-f10-time-off-request-cancellation-agent-plan.md)
+- F11 error handling & validation hardening spec: [f11-error-handling-spec.md](./specs/f11-error-handling-spec.md)
+- F11 error handling plan: [f11-error-handling-plan.md](./feature-plans/f11-error-handling-plan.md)
+- F11 error handling agent plan: [2026-04-10-f11-error-handling-agent-plan.md](./agent-plans/2026-04-10-f11-error-handling-agent-plan.md)
 
 ## F7 Design Decisions
 
@@ -231,3 +234,16 @@ that read time-off requests.
 | Inline validation | In controller, no class-validator DTOs | Matches every existing controller |
 | `page`/`limit` out of range | Default / cap (1..100) | Matches F3 behavior |
 | Paginated response shape | `{ data, pagination: { page, limit, total, totalPages } }` | Consistent with F3 envelope |
+
+## F11 Design Decisions
+
+Resolved during F11 planning. These are authoritative for cross-cutting error handling.
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Error response format | NestJS default `{ statusCode, message, error }` | Consistent with all prior features; no custom shape needed |
+| HCM timeout | Already implemented (R2 complete from prior work) | `HCM_TIMEOUT_MS` env var with default 3000 ms; `HcmClient` passes it on every call |
+| HCM retry | None | Out of scope; clean 503 response is sufficient |
+| Race condition handling | SQLite serialization + in-transaction re-checks | SQLite single-writer model serializes writes; every `$transaction` that mutates a balance re-reads inside the transaction, preventing double-spend |
+| Global filter registration | `app.useGlobalFilters` in `bootstrap()` | Not via `APP_FILTER`, so integration tests can configure the filter independently |
+| Non-HttpException mapping | `AllExceptionsFilter` → `{ statusCode: 500, message: 'Internal server error' }` | Prevents stack traces from leaking; logs the error with request context |

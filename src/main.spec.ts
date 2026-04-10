@@ -1,11 +1,26 @@
 import { ValidationPipe } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
+import { HttpAdapterHost, NestFactory } from '@nestjs/core';
+
+import { AllExceptionsFilter } from './http/filters/all-exceptions.filter';
 
 jest.mock('@nestjs/core', () => ({
   NestFactory: {
     create: jest.fn(),
   },
+  HttpAdapterHost: class HttpAdapterHost {},
 }));
+
+const makeApp = () => ({
+  useGlobalPipes: jest.fn(),
+  useGlobalFilters: jest.fn(),
+  get: jest.fn().mockImplementation((token: unknown) => {
+    if (token === HttpAdapterHost) {
+      return { httpAdapter: {} };
+    }
+    return { get: jest.fn().mockReturnValue(3000) };
+  }),
+  listen: jest.fn().mockResolvedValue(undefined),
+});
 
 describe('bootstrap', () => {
   it('creates the app and starts listening on the configured port', async () => {
@@ -17,13 +32,7 @@ describe('bootstrap', () => {
 
     const { AppModule } = await import('./app.module');
     const { bootstrap } = await import('./main');
-    const app = {
-      useGlobalPipes: jest.fn(),
-      get: jest.fn().mockReturnValue({
-        get: jest.fn().mockReturnValue(3000),
-      }),
-      listen: jest.fn().mockResolvedValue(undefined),
-    };
+    const app = makeApp();
 
     (NestFactory.create as jest.Mock).mockResolvedValue(app);
 
@@ -31,6 +40,7 @@ describe('bootstrap', () => {
 
     expect(NestFactory.create).toHaveBeenCalledWith(AppModule, { cors: true });
     expect(app.useGlobalPipes).toHaveBeenCalledWith(expect.any(ValidationPipe));
+    expect(app.useGlobalFilters).toHaveBeenCalledWith(expect.any(AllExceptionsFilter));
     expect(app.listen).toHaveBeenCalledWith(3000);
   });
 
@@ -42,13 +52,7 @@ describe('bootstrap', () => {
     process.env.HCM_TIMEOUT_MS = '1500';
 
     const { runForModule } = await import('./main');
-    const app = {
-      useGlobalPipes: jest.fn(),
-      get: jest.fn().mockReturnValue({
-        get: jest.fn().mockReturnValue(3000),
-      }),
-      listen: jest.fn().mockResolvedValue(undefined),
-    };
+    const app = makeApp();
 
     (NestFactory.create as jest.Mock).mockResolvedValue(app);
 
