@@ -1,7 +1,8 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
-import type { PaginatedRequestList, TimeOffRequestService } from '@core/services/time-off-request.service';
+import type { PaginatedRequestList } from '@core/services/time-off-request.service';
+import { TimeOffRequestService } from '@core/services/time-off-request.service';
 import { TimeOffRequestController } from '@http/controllers/time-off-request.controller';
 import type { CreateTimeOffRequestDto } from '@http/dtos/create-time-off-request.dto';
 
