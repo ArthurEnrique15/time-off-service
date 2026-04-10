@@ -46,6 +46,7 @@
 - F10 time-off request cancellation spec: [f10-time-off-request-cancellation-spec.md](./specs/f10-time-off-request-cancellation-spec.md)
 - F10 time-off request cancellation plan: [f10-time-off-request-cancellation-plan.md](./feature-plans/f10-time-off-request-cancellation-plan.md)
 - F10 time-off request cancellation agent plan: [2026-04-10-f10-time-off-request-cancellation-agent-plan.md](./agent-plans/2026-04-10-f10-time-off-request-cancellation-agent-plan.md)
+- F11 error handling & validation hardening spec: [f11-error-handling-spec.md](./specs/f11-error-handling-spec.md)
 
 ## F7 Design Decisions
 
