@@ -41,7 +41,7 @@ describe('AllExceptionsFilter', () => {
       filter.catch(err, makeHost('POST', '/foo'));
 
       expect(Logger.prototype.error).toHaveBeenCalledWith(
-        expect.stringContaining('POST /foo'),
+        expect.stringContaining('POST /foo: crash'),
         err.stack,
       );
     });

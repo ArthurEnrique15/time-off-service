@@ -65,7 +65,7 @@ The filter SHALL be registered as a global filter via `app.useGlobalFilters` in
 #### R2.1
 
 The environment schema SHALL declare an optional `HCM_TIMEOUT_MS` variable of
-type `number` with a default value of `5000`.
+type `number` with a default value of `3000`.
 
 #### R2.2
 
@@ -134,7 +134,7 @@ cannot cause a double-spend.
 ### HcmClient timeout
 
 - `EnvService` already exposes typed config values; add `HCM_TIMEOUT_MS` to
-  `env.schema.ts` with `z.coerce.number().default(5000)`
+  `env.schema.ts` with `z.coerce.number().default(3000)`
 - `HcmClient` is constructed with `EnvService` already injected (via
   `CustomHttpService` chain); inject `EnvService` directly into `HcmClient`
   and read `hcmTimeoutMs = envService.get('hcmTimeoutMs')`
@@ -156,6 +156,6 @@ cannot cause a double-spend.
 
 1. A route that throws `new Error('boom')` returns `{ statusCode: 500, message: 'Internal server error' }` — no stack trace in the response body.
 2. A route that throws `new NotFoundException('x')` still returns `{ statusCode: 404, message: 'x', error: 'Not Found' }`.
-3. Starting the app without `HCM_TIMEOUT_MS` set uses 5000 ms as default.
+3. Starting the app without `HCM_TIMEOUT_MS` set uses 3000 ms as default.
 4. `HcmClient` passes the configured timeout on every outbound call.
 5. All 202 existing tests continue to pass; coverage remains 100 %.
