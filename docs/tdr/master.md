@@ -32,6 +32,8 @@
 - F3 balance audit trail plan: [f3-balance-audit-trail-plan.md](./feature-plans/f3-balance-audit-trail-plan.md)
 - F4 HCM client spec: [f4-hcm-client-spec.md](./specs/f4-hcm-client-spec.md)
 - F4 HCM client plan: [f4-hcm-client-plan.md](./feature-plans/f4-hcm-client-plan.md)
+- F5 time-off request create spec: [f5-time-off-request-create-spec.md](./specs/f5-time-off-request-create-spec.md)
+- F5 time-off request create plan: [f5-time-off-request-create-plan.md](./feature-plans/f5-time-off-request-create-plan.md)
 
 ## Pending Product Definitions
 - Canonical terminology for balances, requests, adjustments, and sync events
