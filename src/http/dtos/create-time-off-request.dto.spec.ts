@@ -46,17 +46,45 @@ describe('CreateTimeOffRequestDto', () => {
     expect(errors.some((e) => e.property === 'endDate')).toBe(true);
   });
 
-  it('fails when startDate is not a valid ISO 8601 date string', async () => {
+  it('fails when startDate is not in YYYY-MM-DD format', async () => {
     const dto = plainToInstance(CreateTimeOffRequestDto, { ...validPayload, startDate: 'not-a-date' });
     const errors = await validate(dto);
 
     expect(errors.some((e) => e.property === 'startDate')).toBe(true);
   });
 
-  it('fails when endDate is not a valid ISO 8601 date string', async () => {
+  it('fails when endDate is not in YYYY-MM-DD format', async () => {
     const dto = plainToInstance(CreateTimeOffRequestDto, { ...validPayload, endDate: 'not-a-date' });
     const errors = await validate(dto);
 
     expect(errors.some((e) => e.property === 'endDate')).toBe(true);
+  });
+
+  it('fails when startDate is a datetime string (not date-only)', async () => {
+    const dto = plainToInstance(CreateTimeOffRequestDto, { ...validPayload, startDate: '2025-06-01T10:00:00Z' });
+    const errors = await validate(dto);
+
+    expect(errors.some((e) => e.property === 'startDate')).toBe(true);
+  });
+
+  it('fails when endDate is a datetime string (not date-only)', async () => {
+    const dto = plainToInstance(CreateTimeOffRequestDto, { ...validPayload, endDate: '2025-06-05T23:59:59Z' });
+    const errors = await validate(dto);
+
+    expect(errors.some((e) => e.property === 'endDate')).toBe(true);
+  });
+
+  it('fails when employeeId is an empty string', async () => {
+    const dto = plainToInstance(CreateTimeOffRequestDto, { ...validPayload, employeeId: '' });
+    const errors = await validate(dto);
+
+    expect(errors.some((e) => e.property === 'employeeId')).toBe(true);
+  });
+
+  it('fails when locationId is an empty string', async () => {
+    const dto = plainToInstance(CreateTimeOffRequestDto, { ...validPayload, locationId: '' });
+    const errors = await validate(dto);
+
+    expect(errors.some((e) => e.property === 'locationId')).toBe(true);
   });
 });

@@ -22,7 +22,7 @@ import { EnvConfigModule, envValidationSchema, getEnvConfig } from '@shared/conf
   providers: [
     {
       provide: APP_PIPE,
-      useValue: new ValidationPipe({ whitelist: true, forbidNonWhitelisted: false }),
+      useValue: new ValidationPipe({ whitelist: true, forbidNonWhitelisted: false, transform: true }),
     },
   ],
 })
