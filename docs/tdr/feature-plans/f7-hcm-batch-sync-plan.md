@@ -222,15 +222,15 @@ import { Type } from 'class-transformer';
 export class BatchBalanceEntryDto {
   @IsString()
   @IsNotEmpty()
-  employeeId: string;
+  employeeId!: string;
 
   @IsString()
   @IsNotEmpty()
-  locationId: string;
+  locationId!: string;
 
   @IsInt()
   @Min(0)
-  availableDays: number;
+  availableDays!: number;
 }
 
 export class BatchSyncRequestDto {
@@ -238,7 +238,7 @@ export class BatchSyncRequestDto {
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => BatchBalanceEntryDto)
-  balances: BatchBalanceEntryDto[];
+  balances!: BatchBalanceEntryDto[];
 }
 ```
 
