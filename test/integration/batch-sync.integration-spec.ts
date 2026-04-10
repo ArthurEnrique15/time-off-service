@@ -104,7 +104,9 @@ describe('Batch balance sync integration', () => {
 
       const history = await request(app.getHttpServer()).get('/balances/emp-a/loc-1/history').expect(200);
 
-      const updateEntry = history.body.data.find((e: any) => e.reason === 'BATCH_SYNC' && e.delta === 10);
+      const updateEntry = history.body.data.find(
+        (e: { reason: string; delta: number }) => e.reason === 'BATCH_SYNC' && e.delta === 10,
+      );
       expect(updateEntry).toBeDefined();
     });
 
