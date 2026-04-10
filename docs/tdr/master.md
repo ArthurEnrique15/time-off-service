@@ -37,6 +37,24 @@
 - F7 HCM batch sync spec: [f7-hcm-batch-sync-spec.md](./specs/f7-hcm-batch-sync-spec.md)
 - F7 HCM batch sync plan: [f7-hcm-batch-sync-plan.md](./feature-plans/f7-hcm-batch-sync-plan.md)
 
+## F7 Design Decisions
+
+Resolved during F7 brainstorming. These are authoritative for the HCM batch sync feature and downstream consumers.
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| New balance (unknown pair) | Upsert — create locally | Batch is authoritative; unknown pairs are valid new data |
+| Conflict handling (PENDING request + balance change) | Flag in response, still apply update | Balance stays accurate; caller can act on conflict list |
+| Partial failure | Continue processing all entries, collect errors | No partial-batch aborts; response reports every outcome |
+| Response body | Summary + conflict list + error list | Actionable response; callers can correlate outcomes |
+| Balance unchanged | Skip (no update, no audit, no conflict check) | No-op avoids noise in audit trail |
+| Per-entry transactions | Each entry in its own `$transaction` | Isolates failures; aligns with partial-success policy |
+| Audit delta for new balances | `availableDays` (as if prior was 0) | Consistent representation; full value created from nothing |
+| Mock HCM extension | Add `GET /balances` returning all seeded balances | Enables realistic end-to-end integration test flow |
+| `upsertBalance` location | Added to `BalanceService` | Keeps all balance mutations in one place |
+| HTTP status on partial success | 200 | Batch ran to completion; body describes individual outcomes |
+| Input validation | class-validator DTOs + global `ValidationPipe` | F7 is first feature with nested array validation; DTOs are the right tool |
+
 ## Pending Product Definitions
 - Canonical terminology for balances, requests, adjustments, and sync events
 - Time model and date boundary policy
