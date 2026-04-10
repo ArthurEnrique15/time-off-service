@@ -487,4 +487,221 @@ describe('Time-off request integration', () => {
       expect(response.body.pagination.page).toBe(1);
     });
   });
+
+  describe('PATCH /time-off-requests/:id/approve', () => {
+    it('returns 200 with status APPROVED on a PENDING request', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-08-01', endDate: '2025-08-05' })
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .patch(`/time-off-requests/${createRes.body.id}/approve`)
+        .expect(200);
+
+      expect(response.body.status).toBe('APPROVED');
+      expect(response.body.id).toBe(createRes.body.id);
+    });
+
+    it('decrements reservedDays (removes the reservation) on approve', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-08-01', endDate: '2025-08-05' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/time-off-requests/${createRes.body.id}/approve`)
+        .expect(200);
+
+      const balance = await prisma.balance.findUnique({
+        where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID } },
+      });
+
+      // 5 days reserved on create, 0 reserved after approve (confirmDeduction)
+      expect(balance!.reservedDays).toBe(0);
+      // availableDays unchanged by approve (was already decremented on create)
+      expect(balance!.availableDays).toBe(15);
+    });
+
+    it('records an APPROVAL_DEDUCTION audit entry with negative delta', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-08-01', endDate: '2025-08-05' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/time-off-requests/${createRes.body.id}/approve`)
+        .expect(200);
+
+      const balance = await prisma.balance.findUnique({
+        where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID } },
+      });
+
+      const auditEntries = await prisma.balanceAuditEntry.findMany({
+        where: { balanceId: balance!.id, reason: 'APPROVAL_DEDUCTION' },
+      });
+
+      expect(auditEntries).toHaveLength(1);
+      expect(auditEntries[0].delta).toBe(-5);
+      expect(auditEntries[0].requestId).toBe(createRes.body.id);
+    });
+
+    it('records actorId in the audit entry when provided', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-08-01', endDate: '2025-08-05' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/time-off-requests/${createRes.body.id}/approve`)
+        .send({ actorId: 'manager-1' })
+        .expect(200);
+
+      const balance = await prisma.balance.findUnique({
+        where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID } },
+      });
+
+      const auditEntry = await prisma.balanceAuditEntry.findFirst({
+        where: { balanceId: balance!.id, reason: 'APPROVAL_DEDUCTION' },
+      });
+
+      expect(auditEntry!.actorId).toBe('manager-1');
+    });
+
+    it('returns 404 when request does not exist', async () => {
+      await request(app.getHttpServer())
+        .patch('/time-off-requests/non-existent-id/approve')
+        .expect(404);
+    });
+
+    it('returns 409 when request is already APPROVED', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-08-01', endDate: '2025-08-05' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/time-off-requests/${createRes.body.id}/approve`)
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .patch(`/time-off-requests/${createRes.body.id}/approve`)
+        .expect(409);
+    });
+
+    it('returns 409 when request is REJECTED', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-08-01', endDate: '2025-08-05' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/time-off-requests/${createRes.body.id}/reject`)
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .patch(`/time-off-requests/${createRes.body.id}/approve`)
+        .expect(409);
+    });
+  });
+
+  describe('PATCH /time-off-requests/:id/reject', () => {
+    it('returns 200 with status REJECTED on a PENDING request', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-08-01', endDate: '2025-08-05' })
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .patch(`/time-off-requests/${createRes.body.id}/reject`)
+        .expect(200);
+
+      expect(response.body.status).toBe('REJECTED');
+      expect(response.body.id).toBe(createRes.body.id);
+    });
+
+    it('restores availableDays and clears reservedDays on reject', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-08-01', endDate: '2025-08-05' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/time-off-requests/${createRes.body.id}/reject`)
+        .expect(200);
+
+      const balance = await prisma.balance.findUnique({
+        where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID } },
+      });
+
+      expect(balance!.reservedDays).toBe(0);
+      expect(balance!.availableDays).toBe(20);
+    });
+
+    it('records a RESERVATION_RELEASE audit entry with positive delta', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-08-01', endDate: '2025-08-05' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/time-off-requests/${createRes.body.id}/reject`)
+        .expect(200);
+
+      const balance = await prisma.balance.findUnique({
+        where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID } },
+      });
+
+      const auditEntries = await prisma.balanceAuditEntry.findMany({
+        where: { balanceId: balance!.id, reason: 'RESERVATION_RELEASE' },
+      });
+
+      expect(auditEntries).toHaveLength(1);
+      expect(auditEntries[0].delta).toBe(5);
+      expect(auditEntries[0].requestId).toBe(createRes.body.id);
+    });
+
+    it('returns 404 when request does not exist', async () => {
+      await request(app.getHttpServer())
+        .patch('/time-off-requests/non-existent-id/reject')
+        .expect(404);
+    });
+
+    it('records actorId in the audit entry when provided', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-08-01', endDate: '2025-08-05' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/time-off-requests/${createRes.body.id}/reject`)
+        .send({ actorId: 'manager-2' })
+        .expect(200);
+
+      const balance = await prisma.balance.findUnique({
+        where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID } },
+      });
+
+      const auditEntry = await prisma.balanceAuditEntry.findFirst({
+        where: { balanceId: balance!.id, reason: 'RESERVATION_RELEASE' },
+      });
+
+      expect(auditEntry!.actorId).toBe('manager-2');
+    });
+
+    it('returns 409 when request is already REJECTED', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-08-01', endDate: '2025-08-05' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/time-off-requests/${createRes.body.id}/reject`)
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .patch(`/time-off-requests/${createRes.body.id}/reject`)
+        .expect(409);
+    });
+  });
 });
