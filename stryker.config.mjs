@@ -11,6 +11,7 @@ const config = {
     'src/shared/config/env/env.config.ts',
     'src/core/services/balance.service.ts',
     'src/core/services/balance-audit.service.ts',
+    'src/core/services/time-off-request.service.ts',
     'src/shared/core/either/either.ts',
     'src/shared/core/custom-http/custom-http.service.ts',
     'src/shared/providers/hcm/hcm.client.ts',
