@@ -62,6 +62,20 @@ export const startMockHcmServer = async (options: MockHcmServerOptions = {}) => 
       return;
     }
 
+    // GET /balances — bulk export (must be registered before the /:eid/:lid regex handler)
+    if (method === 'GET' && url === '/balances') {
+      const handler = (server as any).handlers?.getBalancesBulk;
+      if (handler) {
+        handler(request, response);
+      } else {
+        // Default: return all balances
+        const balances = Array.from(balanceStore.values());
+        json(response, 200, balances);
+      }
+
+      return;
+    }
+
     // GET /balances/:employeeId/:locationId
     const balanceMatch = url.match(/^\/balances\/([^/]+)\/([^/]+)$/);
 
@@ -181,8 +195,14 @@ export const startMockHcmServer = async (options: MockHcmServerOptions = {}) => 
     throw new Error('Unable to determine mock HCM server address');
   }
 
+  // Attach handlers object to server for tests to register custom behavior
+  (server as any).handlers = {
+    getBalancesBulk: undefined as ((request: IncomingMessage, response: ServerResponse) => void) | undefined,
+  };
+
   return {
     baseUrl: `http://127.0.0.1:${address.port}`,
+    handlers: (server as any).handlers,
     close: async () => {
       await new Promise<void>((resolve, reject) => {
         server.close((error) => {
