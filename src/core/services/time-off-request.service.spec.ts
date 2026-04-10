@@ -157,7 +157,7 @@ describe('TimeOffRequestService', () => {
     it('throws BadRequestException when startDate is after endDate', async () => {
       await expect(
         service.create({ ...validDto, startDate: '2025-06-10', endDate: '2025-06-05' }),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow('startDate must be before or equal to endDate');
 
       expect(mockHcmClient.submitTimeOff).not.toHaveBeenCalled();
     });
@@ -167,7 +167,9 @@ describe('TimeOffRequestService', () => {
     it('throws NotFoundException when balance does not exist', async () => {
       mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(null);
 
-      await expect(service.create(validDto)).rejects.toThrow(NotFoundException);
+      await expect(service.create(validDto)).rejects.toThrow(
+        'Balance not found for employee emp-1 at location loc-1',
+      );
       expect(mockHcmClient.submitTimeOff).not.toHaveBeenCalled();
     });
 
@@ -179,6 +181,16 @@ describe('TimeOffRequestService', () => {
 
       await expect(service.create(validDto)).rejects.toThrow(InsufficientBalanceError);
       expect(mockHcmClient.submitTimeOff).not.toHaveBeenCalled();
+    });
+
+    it('does not throw when availableDays exactly equals days requested', async () => {
+      mockBalanceService.findByEmployeeAndLocation.mockResolvedValue({
+        ...mockBalance,
+        availableDays: 5,
+      });
+      mockHcmClient.submitTimeOff.mockResolvedValue(Success.create({ id: 'hcm-req-1', status: 'APPROVED' }));
+
+      await expect(service.create(validDto)).resolves.toBeDefined();
     });
   });
 
@@ -195,7 +207,9 @@ describe('TimeOffRequestService', () => {
         return cb(tx);
       });
 
-      await expect(service.create(validDto)).rejects.toThrow(NotFoundException);
+      await expect(service.create(validDto)).rejects.toThrow(
+        'Balance not found for employee emp-1 at location loc-1',
+      );
     });
 
     it('throws InsufficientBalanceError when balance becomes insufficient inside the transaction', async () => {
@@ -211,6 +225,26 @@ describe('TimeOffRequestService', () => {
       });
 
       await expect(service.create(validDto)).rejects.toThrow(InsufficientBalanceError);
+    });
+
+    it('does not throw when in-transaction balance exactly equals days requested', async () => {
+      mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(mockBalance);
+      mockHcmClient.submitTimeOff.mockResolvedValue(Success.create({ id: 'hcm-req-1', status: 'APPROVED' }));
+
+      mockPrismaService.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => {
+        const tx = {
+          balance: {
+            findUnique: jest.fn().mockResolvedValue({ ...mockBalance, availableDays: 5 }),
+            update: jest.fn().mockResolvedValue(mockBalance),
+          },
+          timeOffRequest: {
+            create: jest.fn().mockResolvedValue(mockRequest),
+          },
+        };
+        return cb(tx);
+      });
+
+      await expect(service.create(validDto)).resolves.toBeDefined();
     });
   });
 
@@ -241,8 +275,52 @@ describe('TimeOffRequestService', () => {
         Failure.create({ code: 'UNKNOWN', message: 'network error', statusCode: 500 }),
       );
 
-      await expect(service.create(validDto)).rejects.toThrow(ServiceUnavailableException);
+      await expect(service.create(validDto)).rejects.toThrow('HCM service is unavailable');
       expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('create — Prisma call assertions', () => {
+    it('calls tx.balance.findUnique and tx.balance.update with correct args, and creates request with PENDING status', async () => {
+      mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(mockBalance);
+      mockHcmClient.submitTimeOff.mockResolvedValue(Success.create({ id: 'hcm-req-1', status: 'APPROVED' }));
+
+      let capturedTx: any;
+      mockPrismaService.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => {
+        capturedTx = {
+          balance: {
+            findUnique: jest.fn().mockResolvedValue(mockBalance),
+            update: jest.fn().mockResolvedValue({ ...mockBalance, availableDays: 15, reservedDays: 5 }),
+          },
+          timeOffRequest: {
+            create: jest.fn().mockResolvedValue(mockRequest),
+          },
+        };
+        return cb(capturedTx);
+      });
+
+      await service.create(validDto);
+
+      expect(capturedTx.balance.findUnique).toHaveBeenCalledWith({
+        where: { employeeId_locationId: { employeeId: 'emp-1', locationId: 'loc-1' } },
+      });
+
+      expect(capturedTx.balance.update).toHaveBeenCalledWith({
+        where: { employeeId_locationId: { employeeId: 'emp-1', locationId: 'loc-1' } },
+        data: {
+          availableDays: { decrement: 5 },
+          reservedDays: { increment: 5 },
+        },
+      });
+
+      expect(capturedTx.timeOffRequest.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'PENDING',
+            hcmRequestId: 'hcm-req-1',
+          }),
+        }),
+      );
     });
   });
 });
