@@ -310,9 +310,7 @@ describe('Time-off request integration', () => {
 
   describe('GET /time-off-requests/:id', () => {
     it('returns 404 for unknown id', async () => {
-      const response = await request(app.getHttpServer())
-        .get('/time-off-requests/nonexistent-id')
-        .expect(404);
+      const response = await request(app.getHttpServer()).get('/time-off-requests/nonexistent-id').expect(404);
 
       expect(response.body.message).toContain('not found');
     });
@@ -328,9 +326,7 @@ describe('Time-off request integration', () => {
         },
       });
 
-      const response = await request(app.getHttpServer())
-        .get(`/time-off-requests/${created.id}`)
-        .expect(200);
+      const response = await request(app.getHttpServer()).get(`/time-off-requests/${created.id}`).expect(200);
 
       expect(response.body.id).toBe(created.id);
       expect(response.body.employeeId).toBe('emp-get-one');
@@ -340,15 +336,11 @@ describe('Time-off request integration', () => {
 
   describe('GET /time-off-requests', () => {
     it('returns 400 when employeeId is missing', async () => {
-      await request(app.getHttpServer())
-        .get('/time-off-requests')
-        .expect(400);
+      await request(app.getHttpServer()).get('/time-off-requests').expect(400);
     });
 
     it('returns 400 for invalid status value', async () => {
-      await request(app.getHttpServer())
-        .get('/time-off-requests?employeeId=emp-1&status=INVALID')
-        .expect(400);
+      await request(app.getHttpServer()).get('/time-off-requests?employeeId=emp-1&status=INVALID').expect(400);
     });
 
     it('returns 200 with empty data when employee has no requests', async () => {
@@ -376,9 +368,7 @@ describe('Time-off request integration', () => {
         },
       });
 
-      const response = await request(app.getHttpServer())
-        .get('/time-off-requests?employeeId=emp-list')
-        .expect(200);
+      const response = await request(app.getHttpServer()).get('/time-off-requests?employeeId=emp-list').expect(200);
 
       expect(response.body.data).toHaveLength(1);
       expect(response.body.data[0].employeeId).toBe('emp-list');
@@ -437,9 +427,7 @@ describe('Time-off request integration', () => {
         '2026-01-02T10:00:00.000Z',
       );
 
-      const response = await request(app.getHttpServer())
-        .get('/time-off-requests?employeeId=emp-sort')
-        .expect(200);
+      const response = await request(app.getHttpServer()).get('/time-off-requests?employeeId=emp-sort').expect(200);
 
       expect(response.body.data[0].id).toBe('sort-req-2');
       expect(response.body.data[1].id).toBe('sort-req-1');
@@ -448,9 +436,27 @@ describe('Time-off request integration', () => {
     it('respects pagination params', async () => {
       await prisma.timeOffRequest.createMany({
         data: [
-          { employeeId: 'emp-page', locationId: 'loc-page', startDate: new Date('2026-06-01'), endDate: new Date('2026-06-01'), status: 'PENDING' },
-          { employeeId: 'emp-page', locationId: 'loc-page', startDate: new Date('2026-07-01'), endDate: new Date('2026-07-01'), status: 'PENDING' },
-          { employeeId: 'emp-page', locationId: 'loc-page', startDate: new Date('2026-08-01'), endDate: new Date('2026-08-01'), status: 'PENDING' },
+          {
+            employeeId: 'emp-page',
+            locationId: 'loc-page',
+            startDate: new Date('2026-06-01'),
+            endDate: new Date('2026-06-01'),
+            status: 'PENDING',
+          },
+          {
+            employeeId: 'emp-page',
+            locationId: 'loc-page',
+            startDate: new Date('2026-07-01'),
+            endDate: new Date('2026-07-01'),
+            status: 'PENDING',
+          },
+          {
+            employeeId: 'emp-page',
+            locationId: 'loc-page',
+            startDate: new Date('2026-08-01'),
+            endDate: new Date('2026-08-01'),
+            status: 'PENDING',
+          },
         ],
       });
 
@@ -509,9 +515,7 @@ describe('Time-off request integration', () => {
         .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-08-01', endDate: '2025-08-05' })
         .expect(201);
 
-      await request(app.getHttpServer())
-        .patch(`/time-off-requests/${createRes.body.id}/approve`)
-        .expect(200);
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/approve`).expect(200);
 
       const balance = await prisma.balance.findUnique({
         where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID } },
@@ -529,9 +533,7 @@ describe('Time-off request integration', () => {
         .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-08-01', endDate: '2025-08-05' })
         .expect(201);
 
-      await request(app.getHttpServer())
-        .patch(`/time-off-requests/${createRes.body.id}/approve`)
-        .expect(200);
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/approve`).expect(200);
 
       const balance = await prisma.balance.findUnique({
         where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID } },
@@ -569,9 +571,7 @@ describe('Time-off request integration', () => {
     });
 
     it('returns 404 when request does not exist', async () => {
-      await request(app.getHttpServer())
-        .patch('/time-off-requests/non-existent-id/approve')
-        .expect(404);
+      await request(app.getHttpServer()).patch('/time-off-requests/non-existent-id/approve').expect(404);
     });
 
     it('returns 409 when request is already APPROVED', async () => {
@@ -580,13 +580,9 @@ describe('Time-off request integration', () => {
         .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-08-01', endDate: '2025-08-05' })
         .expect(201);
 
-      await request(app.getHttpServer())
-        .patch(`/time-off-requests/${createRes.body.id}/approve`)
-        .expect(200);
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/approve`).expect(200);
 
-      await request(app.getHttpServer())
-        .patch(`/time-off-requests/${createRes.body.id}/approve`)
-        .expect(409);
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/approve`).expect(409);
     });
 
     it('returns 409 when request is REJECTED', async () => {
@@ -595,13 +591,9 @@ describe('Time-off request integration', () => {
         .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-08-01', endDate: '2025-08-05' })
         .expect(201);
 
-      await request(app.getHttpServer())
-        .patch(`/time-off-requests/${createRes.body.id}/reject`)
-        .expect(200);
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/reject`).expect(200);
 
-      await request(app.getHttpServer())
-        .patch(`/time-off-requests/${createRes.body.id}/approve`)
-        .expect(409);
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/approve`).expect(409);
     });
   });
 
@@ -626,9 +618,7 @@ describe('Time-off request integration', () => {
         .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-08-01', endDate: '2025-08-05' })
         .expect(201);
 
-      await request(app.getHttpServer())
-        .patch(`/time-off-requests/${createRes.body.id}/reject`)
-        .expect(200);
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/reject`).expect(200);
 
       const balance = await prisma.balance.findUnique({
         where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID } },
@@ -644,9 +634,7 @@ describe('Time-off request integration', () => {
         .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-08-01', endDate: '2025-08-05' })
         .expect(201);
 
-      await request(app.getHttpServer())
-        .patch(`/time-off-requests/${createRes.body.id}/reject`)
-        .expect(200);
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/reject`).expect(200);
 
       const balance = await prisma.balance.findUnique({
         where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID } },
@@ -662,9 +650,7 @@ describe('Time-off request integration', () => {
     });
 
     it('returns 404 when request does not exist', async () => {
-      await request(app.getHttpServer())
-        .patch('/time-off-requests/non-existent-id/reject')
-        .expect(404);
+      await request(app.getHttpServer()).patch('/time-off-requests/non-existent-id/reject').expect(404);
     });
 
     it('records actorId in the audit entry when provided', async () => {
@@ -695,13 +681,9 @@ describe('Time-off request integration', () => {
         .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-08-01', endDate: '2025-08-05' })
         .expect(201);
 
-      await request(app.getHttpServer())
-        .patch(`/time-off-requests/${createRes.body.id}/reject`)
-        .expect(200);
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/reject`).expect(200);
 
-      await request(app.getHttpServer())
-        .patch(`/time-off-requests/${createRes.body.id}/reject`)
-        .expect(409);
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/reject`).expect(409);
     });
   });
 });

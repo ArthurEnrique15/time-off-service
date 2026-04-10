@@ -157,10 +157,10 @@ describe('Batch balance sync integration', () => {
         .post('/sync/batch')
         .send({
           balances: [
-            { employeeId: 'emp-new', locationId: 'loc-1', availableDays: 5 },  // new
-            { employeeId: 'emp-x',   locationId: 'loc-1', availableDays: 10 }, // unchanged
-            { employeeId: 'emp-y',   locationId: 'loc-1', availableDays: 12 }, // updated
-            { employeeId: 'emp-z',   locationId: 'loc-1', availableDays: 3 },  // updated + conflicted
+            { employeeId: 'emp-new', locationId: 'loc-1', availableDays: 5 }, // new
+            { employeeId: 'emp-x', locationId: 'loc-1', availableDays: 10 }, // unchanged
+            { employeeId: 'emp-y', locationId: 'loc-1', availableDays: 12 }, // updated
+            { employeeId: 'emp-z', locationId: 'loc-1', availableDays: 3 }, // updated + conflicted
           ],
         })
         .expect(200);

@@ -1,4 +1,16 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import type { TimeOffRequest } from '@prisma/client';
 
 import {
@@ -7,6 +19,7 @@ import {
   type PaginatedRequestList,
   type TimeOffRequestStatus,
 } from '@core/services/time-off-request.service';
+
 import { ApproveRejectTimeOffRequestDto } from '@http/dtos/approve-reject-time-off-request.dto';
 import { CreateTimeOffRequestDto } from '@http/dtos/create-time-off-request.dto';
 
@@ -32,7 +45,9 @@ export class TimeOffRequestController {
     }
 
     if (status && !TIME_OFF_REQUEST_STATUSES.includes(status as TimeOffRequestStatus)) {
-      throw new BadRequestException(`Invalid status: ${status}. Must be one of ${TIME_OFF_REQUEST_STATUSES.join(', ')}`);
+      throw new BadRequestException(
+        `Invalid status: ${status}. Must be one of ${TIME_OFF_REQUEST_STATUSES.join(', ')}`,
+      );
     }
 
     const parsedPage = page ? parseInt(page, 10) : undefined;
@@ -58,19 +73,13 @@ export class TimeOffRequestController {
 
   @Patch(':id/approve')
   @HttpCode(HttpStatus.OK)
-  approve(
-    @Param('id') id: string,
-    @Body() dto: ApproveRejectTimeOffRequestDto,
-  ): Promise<TimeOffRequest> {
+  approve(@Param('id') id: string, @Body() dto: ApproveRejectTimeOffRequestDto): Promise<TimeOffRequest> {
     return this.timeOffRequestService.approve(id, dto.actorId);
   }
 
   @Patch(':id/reject')
   @HttpCode(HttpStatus.OK)
-  reject(
-    @Param('id') id: string,
-    @Body() dto: ApproveRejectTimeOffRequestDto,
-  ): Promise<TimeOffRequest> {
+  reject(@Param('id') id: string, @Body() dto: ApproveRejectTimeOffRequestDto): Promise<TimeOffRequest> {
     return this.timeOffRequestService.reject(id, dto.actorId);
   }
 }

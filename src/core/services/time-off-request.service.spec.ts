@@ -1,13 +1,20 @@
-import { BadRequestException, ConflictException, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { parseISO } from 'date-fns';
 
 import { PrismaService } from '@app-prisma/prisma.service';
+
 import { BalanceAuditService } from '@core/services/balance-audit.service';
 import { BalanceService } from '@core/services/balance.service';
 import { TimeOffRequestService } from '@core/services/time-off-request.service';
-import { InsufficientBalanceError } from '@shared/errors/insufficient-balance.error';
+
 import { Failure, Success } from '@shared/core/either';
+import { InsufficientBalanceError } from '@shared/errors/insufficient-balance.error';
 import { HcmClient } from '@shared/providers/hcm/hcm.client';
 
 describe('TimeOffRequestService', () => {
@@ -154,9 +161,11 @@ describe('TimeOffRequestService', () => {
       mockPrismaService.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => {
         const tx = {
           timeOffRequest: {
-            create: jest.fn().mockImplementation(({ data }: any) =>
-              Promise.resolve({ ...mockRequest, hcmRequestId: data.hcmRequestId }),
-            ),
+            create: jest
+              .fn()
+              .mockImplementation(({ data }: any) =>
+                Promise.resolve({ ...mockRequest, hcmRequestId: data.hcmRequestId }),
+              ),
           },
         };
         return cb(tx);
@@ -170,9 +179,9 @@ describe('TimeOffRequestService', () => {
 
   describe('create — date validation', () => {
     it('throws BadRequestException when startDate is after endDate', async () => {
-      await expect(
-        service.create({ ...validDto, startDate: '2025-06-10', endDate: '2025-06-05' }),
-      ).rejects.toThrow('startDate must be before or equal to endDate');
+      await expect(service.create({ ...validDto, startDate: '2025-06-10', endDate: '2025-06-05' })).rejects.toThrow(
+        'startDate must be before or equal to endDate',
+      );
 
       expect(mockHcmClient.submitTimeOff).not.toHaveBeenCalled();
     });
@@ -182,9 +191,7 @@ describe('TimeOffRequestService', () => {
     it('throws NotFoundException when balance does not exist', async () => {
       mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(null);
 
-      await expect(service.create(validDto)).rejects.toThrow(
-        'Balance not found for employee emp-1 at location loc-1',
-      );
+      await expect(service.create(validDto)).rejects.toThrow('Balance not found for employee emp-1 at location loc-1');
       expect(mockHcmClient.submitTimeOff).not.toHaveBeenCalled();
     });
 
@@ -217,17 +224,13 @@ describe('TimeOffRequestService', () => {
         new NotFoundException('Balance not found for employee emp-1 at location loc-1'),
       );
 
-      await expect(service.create(validDto)).rejects.toThrow(
-        'Balance not found for employee emp-1 at location loc-1',
-      );
+      await expect(service.create(validDto)).rejects.toThrow('Balance not found for employee emp-1 at location loc-1');
     });
 
     it('throws InsufficientBalanceError when balance becomes insufficient inside the transaction', async () => {
       mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(mockBalance);
       mockHcmClient.submitTimeOff.mockResolvedValue(Success.create({ id: 'hcm-req-1', status: 'APPROVED' }));
-      mockBalanceService.reserveInTx.mockRejectedValueOnce(
-        new InsufficientBalanceError('emp-1', 'loc-1', 5, 1),
-      );
+      mockBalanceService.reserveInTx.mockRejectedValueOnce(new InsufficientBalanceError('emp-1', 'loc-1', 5, 1));
 
       await expect(service.create(validDto)).rejects.toThrow(InsufficientBalanceError);
     });
@@ -429,27 +432,21 @@ describe('TimeOffRequestService — approve', () => {
     mockPrismaService.timeOffRequest.findUnique.mockResolvedValue({ ...mockRequest, status: 'APPROVED' });
     const service = createService();
 
-    await expect(service.approve('req-1')).rejects.toThrow(
-      new ConflictException('Cannot approve a APPROVED request'),
-    );
+    await expect(service.approve('req-1')).rejects.toThrow(new ConflictException('Cannot approve a APPROVED request'));
   });
 
   it('throws ConflictException when request status is REJECTED', async () => {
     mockPrismaService.timeOffRequest.findUnique.mockResolvedValue({ ...mockRequest, status: 'REJECTED' });
     const service = createService();
 
-    await expect(service.approve('req-1')).rejects.toThrow(
-      new ConflictException('Cannot approve a REJECTED request'),
-    );
+    await expect(service.approve('req-1')).rejects.toThrow(new ConflictException('Cannot approve a REJECTED request'));
   });
 
   it('throws ConflictException when request status is CANCELLED', async () => {
     mockPrismaService.timeOffRequest.findUnique.mockResolvedValue({ ...mockRequest, status: 'CANCELLED' });
     const service = createService();
 
-    await expect(service.approve('req-1')).rejects.toThrow(
-      new ConflictException('Cannot approve a CANCELLED request'),
-    );
+    await expect(service.approve('req-1')).rejects.toThrow(new ConflictException('Cannot approve a CANCELLED request'));
   });
 
   it('calls tx.timeOffRequest.update with APPROVED, calls confirmDeductionInTx, calls recordEntryInTx with APPROVAL_DEDUCTION and delta -days', async () => {
@@ -562,27 +559,21 @@ describe('TimeOffRequestService — reject', () => {
     mockPrismaService.timeOffRequest.findUnique.mockResolvedValue({ ...mockRequest, status: 'APPROVED' });
     const service = createService();
 
-    await expect(service.reject('req-1')).rejects.toThrow(
-      new ConflictException('Cannot reject a APPROVED request'),
-    );
+    await expect(service.reject('req-1')).rejects.toThrow(new ConflictException('Cannot reject a APPROVED request'));
   });
 
   it('throws ConflictException when request status is REJECTED', async () => {
     mockPrismaService.timeOffRequest.findUnique.mockResolvedValue({ ...mockRequest, status: 'REJECTED' });
     const service = createService();
 
-    await expect(service.reject('req-1')).rejects.toThrow(
-      new ConflictException('Cannot reject a REJECTED request'),
-    );
+    await expect(service.reject('req-1')).rejects.toThrow(new ConflictException('Cannot reject a REJECTED request'));
   });
 
   it('throws ConflictException when request status is CANCELLED', async () => {
     mockPrismaService.timeOffRequest.findUnique.mockResolvedValue({ ...mockRequest, status: 'CANCELLED' });
     const service = createService();
 
-    await expect(service.reject('req-1')).rejects.toThrow(
-      new ConflictException('Cannot reject a CANCELLED request'),
-    );
+    await expect(service.reject('req-1')).rejects.toThrow(new ConflictException('Cannot reject a CANCELLED request'));
   });
 
   it('calls tx.timeOffRequest.update with REJECTED, calls releaseReservationInTx, calls recordEntryInTx with RESERVATION_RELEASE and delta +days', async () => {

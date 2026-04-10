@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 
 import type { PaginatedRequestList } from '@core/services/time-off-request.service';
 import { TimeOffRequestService } from '@core/services/time-off-request.service';
+
 import { TimeOffRequestController } from '@http/controllers/time-off-request.controller';
 import type { CreateTimeOffRequestDto } from '@http/dtos/create-time-off-request.dto';
 
@@ -108,9 +109,7 @@ describe('TimeOffRequestController', () => {
     });
 
     it('throws BadRequestException for invalid status', async () => {
-      await expect(controller.findAll('emp-1', 'INVALID', undefined, undefined)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(controller.findAll('emp-1', 'INVALID', undefined, undefined)).rejects.toThrow(BadRequestException);
     });
 
     it('passes undefined status when not provided (returns all)', async () => {
@@ -147,23 +146,15 @@ describe('TimeOffRequestController', () => {
     });
 
     it('propagates NotFoundException from service', async () => {
-      mockTimeOffRequestService.approve.mockRejectedValue(
-        new NotFoundException('Time-off request req-1 not found'),
-      );
+      mockTimeOffRequestService.approve.mockRejectedValue(new NotFoundException('Time-off request req-1 not found'));
 
-      await expect(controller.approve('nonexistent', { actorId: 'manager-1' })).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(controller.approve('nonexistent', { actorId: 'manager-1' })).rejects.toThrow(NotFoundException);
     });
 
     it('propagates ConflictException from service', async () => {
-      mockTimeOffRequestService.approve.mockRejectedValue(
-        new ConflictException('Cannot approve a APPROVED request'),
-      );
+      mockTimeOffRequestService.approve.mockRejectedValue(new ConflictException('Cannot approve a APPROVED request'));
 
-      await expect(controller.approve('req-1', { actorId: 'manager-1' })).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(controller.approve('req-1', { actorId: 'manager-1' })).rejects.toThrow(ConflictException);
     });
   });
 
@@ -187,9 +178,7 @@ describe('TimeOffRequestController', () => {
     });
 
     it('propagates ConflictException from service', async () => {
-      mockTimeOffRequestService.reject.mockRejectedValue(
-        new ConflictException('Cannot reject a REJECTED request'),
-      );
+      mockTimeOffRequestService.reject.mockRejectedValue(new ConflictException('Cannot reject a REJECTED request'));
 
       await expect(controller.reject('req-1', { actorId: 'manager-1' })).rejects.toThrow(ConflictException);
     });

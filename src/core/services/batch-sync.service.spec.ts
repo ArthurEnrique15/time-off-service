@@ -1,4 +1,5 @@
 import type { PrismaService } from '@app-prisma/prisma.service';
+
 import { BalanceAuditService } from '@core/services/balance-audit.service';
 import { BalanceService } from '@core/services/balance.service';
 import { BatchSyncService } from '@core/services/batch-sync.service';
@@ -118,13 +119,11 @@ describe('BatchSyncService', () => {
 
     it('catches a processing error, adds it to errors, increments failed, and continues processing remaining entries', async () => {
       const { service, balanceService, auditService, prismaService } = createService();
-      (balanceService.upsertBalance as jest.Mock)
-        .mockRejectedValueOnce(new Error('DB error'))
-        .mockResolvedValueOnce({
-          balance: { ...mockBalance, id: 'balance-2', employeeId: 'emp-2', locationId: 'loc-2' },
-          previousAvailableDays: 0,
-          wasCreated: true,
-        });
+      (balanceService.upsertBalance as jest.Mock).mockRejectedValueOnce(new Error('DB error')).mockResolvedValueOnce({
+        balance: { ...mockBalance, id: 'balance-2', employeeId: 'emp-2', locationId: 'loc-2' },
+        previousAvailableDays: 0,
+        wasCreated: true,
+      });
       (auditService.recordEntry as jest.Mock).mockResolvedValue({});
       (prismaService.timeOffRequest.findMany as jest.Mock).mockResolvedValue([]);
 
@@ -152,14 +151,22 @@ describe('BatchSyncService', () => {
       const { service, balanceService, auditService, prismaService } = createService();
       (balanceService.upsertBalance as jest.Mock)
         .mockResolvedValueOnce({ balance: { ...mockBalance, id: 'b1' }, previousAvailableDays: 0, wasCreated: true })
-        .mockResolvedValueOnce({ balance: { ...mockBalance, id: 'b2', availableDays: 5 }, previousAvailableDays: 5, wasCreated: false })
-        .mockResolvedValueOnce({ balance: { ...mockBalance, id: 'b3', availableDays: 20 }, previousAvailableDays: 10, wasCreated: false });
+        .mockResolvedValueOnce({
+          balance: { ...mockBalance, id: 'b2', availableDays: 5 },
+          previousAvailableDays: 5,
+          wasCreated: false,
+        })
+        .mockResolvedValueOnce({
+          balance: { ...mockBalance, id: 'b3', availableDays: 20 },
+          previousAvailableDays: 10,
+          wasCreated: false,
+        });
       (auditService.recordEntry as jest.Mock).mockResolvedValue({});
       (prismaService.timeOffRequest.findMany as jest.Mock).mockResolvedValue([]);
 
       const result = await service.syncBatch([
         { employeeId: 'emp-1', locationId: 'loc-1', availableDays: 10 }, // new
-        { employeeId: 'emp-2', locationId: 'loc-2', availableDays: 5 },  // unchanged
+        { employeeId: 'emp-2', locationId: 'loc-2', availableDays: 5 }, // unchanged
         { employeeId: 'emp-3', locationId: 'loc-3', availableDays: 20 }, // updated
       ]);
 

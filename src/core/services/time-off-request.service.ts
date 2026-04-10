@@ -10,13 +10,15 @@ import type { TimeOffRequest } from '@prisma/client';
 import { differenceInCalendarDays, isAfter, parseISO } from 'date-fns';
 
 import { PrismaService } from '@app-prisma/prisma.service';
+
 import { BalanceAuditService } from '@core/services/balance-audit.service';
 import { BalanceService } from '@core/services/balance.service';
+
+import type { CreateTimeOffRequestDto } from '@http/dtos/create-time-off-request.dto';
+
 import { InsufficientBalanceError } from '@shared/errors/insufficient-balance.error';
 import { HcmClient } from '@shared/providers/hcm/hcm.client';
 import type { HcmError } from '@shared/providers/hcm/hcm.types';
-
-import type { CreateTimeOffRequestDto } from '@http/dtos/create-time-off-request.dto';
 
 export const TIME_OFF_REQUEST_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'] as const;
 
@@ -55,9 +57,7 @@ export class TimeOffRequestService {
     const balance = await this.balanceService.findByEmployeeAndLocation(employeeId, locationId);
 
     if (!balance) {
-      throw new NotFoundException(
-        `Balance not found for employee ${employeeId} at location ${locationId}`,
-      );
+      throw new NotFoundException(`Balance not found for employee ${employeeId} at location ${locationId}`);
     }
 
     if (balance.availableDays < daysRequested) {
@@ -160,8 +160,19 @@ export class TimeOffRequestService {
 
     return this.prismaService.$transaction(async (tx) => {
       const updatedRequest = await tx.timeOffRequest.update({ where: { id }, data: { status: 'APPROVED' } });
-      const balance = await this.balanceService.confirmDeductionInTx(tx, request.employeeId, request.locationId, daysRequested);
-      await this.balanceAuditService.recordEntryInTx(tx, { balanceId: balance.id, delta: -daysRequested, reason: 'APPROVAL_DEDUCTION', requestId: id, actorId });
+      const balance = await this.balanceService.confirmDeductionInTx(
+        tx,
+        request.employeeId,
+        request.locationId,
+        daysRequested,
+      );
+      await this.balanceAuditService.recordEntryInTx(tx, {
+        balanceId: balance.id,
+        delta: -daysRequested,
+        reason: 'APPROVAL_DEDUCTION',
+        requestId: id,
+        actorId,
+      });
       return updatedRequest;
     });
   }
@@ -181,8 +192,19 @@ export class TimeOffRequestService {
 
     return this.prismaService.$transaction(async (tx) => {
       const updatedRequest = await tx.timeOffRequest.update({ where: { id }, data: { status: 'REJECTED' } });
-      const balance = await this.balanceService.releaseReservationInTx(tx, request.employeeId, request.locationId, daysRequested);
-      await this.balanceAuditService.recordEntryInTx(tx, { balanceId: balance.id, delta: daysRequested, reason: 'RESERVATION_RELEASE', requestId: id, actorId });
+      const balance = await this.balanceService.releaseReservationInTx(
+        tx,
+        request.employeeId,
+        request.locationId,
+        daysRequested,
+      );
+      await this.balanceAuditService.recordEntryInTx(tx, {
+        balanceId: balance.id,
+        delta: daysRequested,
+        reason: 'RESERVATION_RELEASE',
+        requestId: id,
+        actorId,
+      });
       return updatedRequest;
     });
   }

@@ -1,5 +1,5 @@
-import { ArrayMinSize, IsArray, IsInt, IsNotEmpty, IsString, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ArrayMinSize, IsArray, IsInt, IsNotEmpty, IsString, Min, ValidateNested } from 'class-validator';
 
 export class BatchBalanceEntryDto {
   @IsString()
