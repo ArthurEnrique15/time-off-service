@@ -148,6 +148,25 @@ that interact with the HCM or use shared infrastructure.
 - Tree-shakeable: only imported functions are bundled, keeping the production build lean.
 - Consistent with modern NestJS/TypeScript ecosystem conventions.
 
+## F5 Design Decisions
+
+Resolved during F5 brainstorming. These are authoritative for all downstream features
+that create or cancel time-off requests.
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Orchestration location | `TimeOffRequestService` | Thin controller pattern; injectable, unit-testable |
+| Local balance check order | Before HCM call | Fail fast without external I/O when balance is obviously insufficient |
+| HCM submit timing | After local check, before DB write | HCM is the authoritative source; no local write until HCM confirms |
+| DB write atomicity | Prisma transaction: `reserve()` + `timeOffRequest.create()` | Prevents balance reserved without request record (or vice versa) |
+| Audit log timing | After transaction commits | `requestId` is needed for the audit entry; only available after create |
+| `hcmRequestId` storage | New nullable `String?` on `TimeOffRequest` | Required by F10 (cancellation via `cancelTimeOff(hcmRequestId)`) |
+| `daysRequested` computation | `differenceInCalendarDays(parseISO(endDate), parseISO(startDate)) + 1` via `date-fns` | Immune to DST off-by-ones; consistent with F4 mock server logic |
+| Date parsing | `date-fns/parseISO` throughout | Consistent locale-independent ISO-8601 parsing; no `new Date()` raw construction |
+| `startDate > endDate` check | `isAfter(parseISO(startDate), parseISO(endDate))` via `date-fns` | Avoids raw `Date` comparison pitfalls |
+| Input validation | `class-validator` DTOs + global `ValidationPipe` | Standard NestJS approach; no manual validation boilerplate |
+| HCM error → HTTP status | `INVALID_DIMENSIONS` → 422, `INSUFFICIENT_BALANCE` → 400, `UNKNOWN` → 503 | 422 signals the input combination is invalid at the domain level; 503 signals downstream unavailability |
+
 ## F6 Design Decisions
 
 Resolved during F6 brainstorming. These are authoritative for all downstream features
