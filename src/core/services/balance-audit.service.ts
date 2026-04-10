@@ -11,6 +11,7 @@ export const AUDIT_REASONS = [
   'APPROVAL_DEDUCTION',
   'CANCELLATION_RESTORE',
   'BATCH_SYNC',
+  'HCM_SYNC',
   'MANUAL_ADJUSTMENT',
 ] as const;
 

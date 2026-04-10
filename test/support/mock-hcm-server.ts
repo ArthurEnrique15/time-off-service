@@ -20,6 +20,11 @@ type MockHcmServerOptions = {
   requests?: MockRequest[];
 };
 
+type MockSubmitHandlerResult = {
+  statusCode: number;
+  body?: any;
+};
+
 const parseBody = async (request: IncomingMessage): Promise<any> => {
   const chunks: Buffer[] = [];
 
@@ -105,6 +110,25 @@ export const startMockHcmServer = async (options: MockHcmServerOptions = {}) => 
     // POST /time-off-requests
     if (method === 'POST' && url === '/time-off-requests') {
       const body = await parseBody(request);
+      const submitHandler = (server as any).handlers?.submitTimeOff as
+        | ((requestBody: any) => MockSubmitHandlerResult | undefined)
+        | undefined;
+
+      if (submitHandler) {
+        const handled = submitHandler(body);
+
+        if (handled) {
+          if (handled.body === undefined) {
+            response.writeHead(handled.statusCode);
+            response.end();
+          } else {
+            json(response, handled.statusCode, handled.body);
+          }
+
+          return;
+        }
+      }
+
       const key = `${body.employeeId}:${body.locationId}`;
       const balance = balanceStore.get(key);
 
@@ -198,6 +222,7 @@ export const startMockHcmServer = async (options: MockHcmServerOptions = {}) => 
   // Attach handlers object to server for tests to register custom behavior
   (server as any).handlers = {
     getBalancesBulk: undefined as ((request: IncomingMessage, response: ServerResponse) => void) | undefined,
+    submitTimeOff: undefined as ((requestBody: any) => MockSubmitHandlerResult | undefined) | undefined,
   };
 
   return {
