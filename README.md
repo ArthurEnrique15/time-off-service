@@ -2,6 +2,8 @@
 
 A NestJS microservice that manages employee time-off balances, requests, and audit history. It maintains a local SQLite cache and integrates with an external HCM (Human Capital Management) system as the source of truth.
 
+Github link: https://github.com/ArthurEnrique15/time-off-service
+
 ## Prerequisites
 
 - **Node.js** 20 LTS
