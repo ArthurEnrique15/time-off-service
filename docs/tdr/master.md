@@ -282,3 +282,16 @@ Resolved during F11 planning. These are authoritative for cross-cutting error ha
 | Race condition handling | SQLite serialization + in-transaction re-checks | SQLite single-writer model serializes writes; every `$transaction` that mutates a balance re-reads inside the transaction, preventing double-spend |
 | Global filter registration | `app.useGlobalFilters` in `bootstrap()` | Not via `APP_FILTER`, so integration tests can configure the filter independently |
 | Non-HttpException mapping | `AllExceptionsFilter` → `{ statusCode: 500, message: 'Internal server error' }` | Prevents stack traces from leaking; logs the error with request context |
+
+## Known Limitations
+
+These are known gaps that would need to be addressed before production deployment. They are intentionally out of scope for the take-home exercise.
+
+| Limitation | Impact | Mitigation Path |
+|---|---|---|
+| No retry or circuit breaker for HCM calls | A single HCM timeout returns 503 to the caller with no automatic retry | Add a retry policy (e.g., exponential backoff with 2–3 attempts) and circuit breaker in `HcmClient` |
+| No idempotency keys on HCM submissions | Retrying a failed approval could create duplicate time-off requests in HCM | Generate and persist an idempotency key per request; send it as a header on HCM calls |
+| No HCM-first failure compensation | If HCM accepts a time-off request but the subsequent local DB write fails, HCM and local state diverge | Implement a compensating transaction (cancel the HCM request on local failure) or a reconciliation job |
+| No authentication or authorization | All endpoints are unauthenticated; `actorId` is trust-based | Add JWT/OAuth middleware; enforce that `actorId` matches the authenticated principal |
+| No overlapping date-range detection | An employee can create multiple requests for overlapping dates on the same location | Add a date-range overlap check in `TimeOffRequestService.create()` before reserving |
+| Integer-day granularity only | No half-day or hourly time-off support | Extend the schema to use decimal days or introduce a `duration` model with finer granularity |
