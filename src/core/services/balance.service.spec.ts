@@ -239,6 +239,52 @@ describe('BalanceService', () => {
     });
   });
 
+  describe('reserveInTx', () => {
+    it('uses the provided tx to find and update balance, returning updated balance', async () => {
+      const updatedBalance = { ...mockBalance, availableDays: 17, reservedDays: 8 };
+      mockPrismaService.balance.findUnique.mockResolvedValue(mockBalance);
+      mockPrismaService.balance.update.mockResolvedValue(updatedBalance);
+
+      const result = await service.reserveInTx(mockPrismaService as any, 'emp-1', 'loc-1', 3);
+
+      expect(result).toEqual(updatedBalance);
+      expect(mockPrismaService.balance.update).toHaveBeenCalledWith({
+        where: { employeeId_locationId: { employeeId: 'emp-1', locationId: 'loc-1' } },
+        data: {
+          availableDays: { decrement: 3 },
+          reservedDays: { increment: 3 },
+        },
+      });
+    });
+
+    it('throws NotFoundException when the balance does not exist in tx', async () => {
+      mockPrismaService.balance.findUnique.mockResolvedValue(null);
+
+      await expect(service.reserveInTx(mockPrismaService as any, 'emp-1', 'loc-1', 3)).rejects.toThrow(
+        'Balance not found for employee emp-1 at location loc-1',
+      );
+    });
+
+    it('throws InsufficientBalanceError when available days are insufficient in tx', async () => {
+      mockPrismaService.balance.findUnique.mockResolvedValue({ ...mockBalance, availableDays: 2 });
+
+      await expect(service.reserveInTx(mockPrismaService as any, 'emp-1', 'loc-1', 5)).rejects.toThrow(
+        InsufficientBalanceError,
+      );
+    });
+
+    it('succeeds when requesting exactly the available days in tx', async () => {
+      const exactBalance = { ...mockBalance, availableDays: 5, reservedDays: 0 };
+      const updatedBalance = { ...exactBalance, availableDays: 0, reservedDays: 5 };
+      mockPrismaService.balance.findUnique.mockResolvedValue(exactBalance);
+      mockPrismaService.balance.update.mockResolvedValue(updatedBalance);
+
+      const result = await service.reserveInTx(mockPrismaService as any, 'emp-1', 'loc-1', 5);
+
+      expect(result).toEqual(updatedBalance);
+    });
+  });
+
   describe('setAvailableDays', () => {
     it('overwrites available days, returning the updated balance', async () => {
       const updatedBalance = { ...mockBalance, availableDays: 30 };

@@ -3,6 +3,8 @@ import type { BalanceAuditEntry } from '@prisma/client';
 
 import { PrismaService } from '@app-prisma/prisma.service';
 
+type TxClient = Parameters<Parameters<PrismaService['$transaction']>[0]>[0];
+
 export const AUDIT_REASONS = [
   'RESERVATION',
   'RESERVATION_RELEASE',
@@ -47,6 +49,23 @@ export class BalanceAuditService {
     }
 
     return this.prismaService.balanceAuditEntry.create({
+      data: {
+        balanceId: input.balanceId,
+        delta: input.delta,
+        reason: input.reason,
+        ...(input.requestId !== undefined && { requestId: input.requestId }),
+        ...(input.reference !== undefined && { reference: input.reference }),
+        ...(input.actorId !== undefined && { actorId: input.actorId }),
+      },
+    });
+  }
+
+  async recordEntryInTx(tx: TxClient, input: CreateAuditEntryInput): Promise<BalanceAuditEntry> {
+    if (!AUDIT_REASONS.includes(input.reason)) {
+      throw new Error(`Invalid audit reason: ${input.reason}`);
+    }
+
+    return tx.balanceAuditEntry.create({
       data: {
         balanceId: input.balanceId,
         delta: input.delta,

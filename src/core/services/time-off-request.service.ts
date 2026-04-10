@@ -47,64 +47,46 @@ export class TimeOffRequestService {
       throw new InsufficientBalanceError(employeeId, locationId, daysRequested, balance.availableDays);
     }
 
-    const hcmResult = await this.hcmClient.submitTimeOff({ employeeId, locationId, startDate, endDate });
+    let hcmRequestId: string | undefined;
 
-    if (hcmResult.isFailure()) {
-      this.throwHcmError(hcmResult.value);
+    try {
+      const hcmResult = await this.hcmClient.submitTimeOff({ employeeId, locationId, startDate, endDate });
+
+      if (hcmResult.isFailure()) {
+        this.throwHcmError(hcmResult.value);
+      }
+
+      hcmRequestId = hcmResult.value.id;
+
+      return await this.prismaService.$transaction(async (tx) => {
+        await this.balanceService.reserveInTx(tx, employeeId, locationId, daysRequested);
+
+        const request = await tx.timeOffRequest.create({
+          data: {
+            employeeId,
+            locationId,
+            startDate: parseISO(startDate),
+            endDate: parseISO(endDate),
+            status: 'PENDING',
+            hcmRequestId,
+          },
+        });
+
+        await this.balanceAuditService.recordEntryInTx(tx, {
+          balanceId: balance.id,
+          delta: -daysRequested,
+          reason: 'RESERVATION',
+          requestId: request.id,
+        });
+
+        return request;
+      });
+    } catch (err) {
+      if (hcmRequestId) {
+        await this.hcmClient.cancelTimeOff(hcmRequestId).catch(() => {});
+      }
+      throw err;
     }
-
-    const hcmRequestId = hcmResult.value.id;
-
-    let createdRequest!: TimeOffRequest;
-
-    await this.prismaService.$transaction(async (tx) => {
-      const currentBalance = await tx.balance.findUnique({
-        where: { employeeId_locationId: { employeeId, locationId } },
-      });
-
-      if (!currentBalance) {
-        throw new NotFoundException(
-          `Balance not found for employee ${employeeId} at location ${locationId}`,
-        );
-      }
-
-      if (currentBalance.availableDays < daysRequested) {
-        throw new InsufficientBalanceError(
-          employeeId,
-          locationId,
-          daysRequested,
-          currentBalance.availableDays,
-        );
-      }
-
-      await tx.balance.update({
-        where: { employeeId_locationId: { employeeId, locationId } },
-        data: {
-          availableDays: { decrement: daysRequested },
-          reservedDays: { increment: daysRequested },
-        },
-      });
-
-      createdRequest = await tx.timeOffRequest.create({
-        data: {
-          employeeId,
-          locationId,
-          startDate: parseISO(startDate),
-          endDate: parseISO(endDate),
-          status: 'PENDING',
-          hcmRequestId,
-        },
-      });
-    });
-
-    await this.balanceAuditService.recordEntry({
-      balanceId: balance.id,
-      delta: -daysRequested,
-      reason: 'RESERVATION',
-      requestId: createdRequest.id,
-    });
-
-    return createdRequest;
   }
 
   private throwHcmError(error: HcmError): never {

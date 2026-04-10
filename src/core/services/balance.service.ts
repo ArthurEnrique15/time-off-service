@@ -25,19 +25,23 @@ export class BalanceService {
 
   async reserve(employeeId: string, locationId: string, days: number): Promise<Balance> {
     return this.prismaService.$transaction(async (tx) => {
-      const balance = await this.findAndValidateExists(tx, employeeId, locationId);
+      return this.reserveInTx(tx, employeeId, locationId, days);
+    });
+  }
 
-      if (balance.availableDays < days) {
-        throw new InsufficientBalanceError(employeeId, locationId, days, balance.availableDays);
-      }
+  async reserveInTx(tx: TxClient, employeeId: string, locationId: string, days: number): Promise<Balance> {
+    const balance = await this.findAndValidateExists(tx, employeeId, locationId);
 
-      return tx.balance.update({
-        where: { employeeId_locationId: { employeeId, locationId } },
-        data: {
-          availableDays: { decrement: days },
-          reservedDays: { increment: days },
-        },
-      });
+    if (balance.availableDays < days) {
+      throw new InsufficientBalanceError(employeeId, locationId, days, balance.availableDays);
+    }
+
+    return tx.balance.update({
+      where: { employeeId_locationId: { employeeId, locationId } },
+      data: {
+        availableDays: { decrement: days },
+        reservedDays: { increment: days },
+      },
     });
   }
 
