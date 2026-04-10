@@ -157,6 +157,9 @@ describe('HcmClient integration', () => {
       const balanceBefore = await hcmClient.getBalance('emp-2', 'loc-2');
 
       expect(balanceBefore.isSuccess()).toBe(true);
+      if (balanceBefore.isFailure()) {
+        throw new Error('Expected balanceBefore to be a success result');
+      }
       const daysBefore = balanceBefore.value.availableDays;
 
       const submitResult = await hcmClient.submitTimeOff({
@@ -167,6 +170,9 @@ describe('HcmClient integration', () => {
       });
 
       expect(submitResult.isSuccess()).toBe(true);
+      if (submitResult.isFailure()) {
+        throw new Error('Expected submitResult to be a success result');
+      }
 
       const cancelResult = await hcmClient.cancelTimeOff(submitResult.value.id);
 
@@ -175,6 +181,9 @@ describe('HcmClient integration', () => {
       const balanceAfter = await hcmClient.getBalance('emp-2', 'loc-2');
 
       expect(balanceAfter.isSuccess()).toBe(true);
+      if (balanceAfter.isFailure()) {
+        throw new Error('Expected balanceAfter to be a success result');
+      }
       expect(balanceAfter.value.availableDays).toBe(daysBefore);
     });
   });

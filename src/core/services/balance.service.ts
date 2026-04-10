@@ -119,14 +119,18 @@ export class BalanceService {
 
   async restoreBalance(employeeId: string, locationId: string, days: number): Promise<Balance> {
     return this.prismaService.$transaction(async (tx) => {
-      await this.findAndValidateExists(tx, employeeId, locationId);
+      return this.restoreBalanceInTx(tx, employeeId, locationId, days);
+    });
+  }
 
-      return tx.balance.update({
-        where: { employeeId_locationId: { employeeId, locationId } },
-        data: {
-          availableDays: { increment: days },
-        },
-      });
+  async restoreBalanceInTx(tx: TxClient, employeeId: string, locationId: string, days: number): Promise<Balance> {
+    await this.findAndValidateExists(tx, employeeId, locationId);
+
+    return tx.balance.update({
+      where: { employeeId_locationId: { employeeId, locationId } },
+      data: {
+        availableDays: { increment: days },
+      },
     });
   }
 

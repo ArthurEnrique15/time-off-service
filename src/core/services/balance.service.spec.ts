@@ -240,6 +240,32 @@ describe('BalanceService', () => {
     });
   });
 
+  describe('restoreBalanceInTx', () => {
+    it('uses the provided tx to increment availableDays, returning the updated balance', async () => {
+      const updatedBalance = { ...mockBalance, availableDays: 23 };
+      mockPrismaService.balance.findUnique.mockResolvedValue(mockBalance);
+      mockPrismaService.balance.update.mockResolvedValue(updatedBalance);
+
+      const result = await service.restoreBalanceInTx(mockPrismaService as any, 'emp-1', 'loc-1', 3);
+
+      expect(result).toEqual(updatedBalance);
+      expect(mockPrismaService.balance.update).toHaveBeenCalledWith({
+        where: { employeeId_locationId: { employeeId: 'emp-1', locationId: 'loc-1' } },
+        data: {
+          availableDays: { increment: 3 },
+        },
+      });
+    });
+
+    it('throws NotFoundException when the balance does not exist in tx', async () => {
+      mockPrismaService.balance.findUnique.mockResolvedValue(null);
+
+      await expect(service.restoreBalanceInTx(mockPrismaService as any, 'emp-1', 'loc-1', 3)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
   describe('reserveInTx', () => {
     it('uses the provided tx to find and update balance, returning updated balance', async () => {
       const updatedBalance = { ...mockBalance, availableDays: 17, reservedDays: 8 };

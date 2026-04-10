@@ -40,6 +40,9 @@
 - F7 HCM batch sync plan: [f7-hcm-batch-sync-plan.md](./feature-plans/f7-hcm-batch-sync-plan.md)
 - F8 manager approval spec: [f8-manager-approval-spec.md](./specs/f8-manager-approval-spec.md)
 - F8 manager approval plan: [f8-manager-approval-plan.md](./feature-plans/f8-manager-approval-plan.md)
+- F10 time-off request cancellation spec: [f10-time-off-request-cancellation-spec.md](./specs/f10-time-off-request-cancellation-spec.md)
+- F10 time-off request cancellation plan: [f10-time-off-request-cancellation-plan.md](./feature-plans/f10-time-off-request-cancellation-plan.md)
+- F10 time-off request cancellation agent plan: [2026-04-10-f10-time-off-request-cancellation-agent-plan.md](./agent-plans/2026-04-10-f10-time-off-request-cancellation-agent-plan.md)
 
 ## F7 Design Decisions
 
@@ -71,6 +74,20 @@ Resolved during F8 brainstorming. These are authoritative for the manager approv
 | Return type | Updated `TimeOffRequest` | Standard REST convention for PATCH |
 | HTTP success code | 200 | Default for PATCH; no `@HttpCode` decorator needed |
 | HCM call on approval | None (deferred to F9) | F8 scope is local state only |
+
+## F10 Design Decisions
+
+Resolved during F10 planning. These are authoritative for the cancellation
+feature and downstream consumers.
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Cancellation flow | Remote-first | HCM is authoritative for cancellation; local state should not change first |
+| Eligible status | `APPROVED` only | Keeps cancellation limited to finalized, approved requests |
+| Missing `hcmRequestId` | 409 Conflict | Approved request without a remote ID indicates state mismatch |
+| Request body | Optional `actorId` string | Reuses the F8 audit attribution pattern |
+| HCM `NOT_FOUND` mapping | 409 Conflict with no local mutation | Signals disagreement between local and HCM state |
+| HCM `UNKNOWN` mapping | 503 Service Unavailable with no local mutation | Downstream failure should not change local records |
 
 ## Pending Product Definitions
 - Canonical terminology for balances, requests, adjustments, and sync events

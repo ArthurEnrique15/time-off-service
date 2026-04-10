@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
 import type { PaginatedRequestList } from '@core/services/time-off-request.service';
@@ -33,6 +33,7 @@ describe('TimeOffRequestController', () => {
     findAllByEmployee: jest.fn().mockResolvedValue(mockPaginatedResponse),
     approve: jest.fn(),
     reject: jest.fn(),
+    cancel: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -76,7 +77,7 @@ describe('TimeOffRequestController', () => {
     it('throws NotFoundException when request not found', async () => {
       mockTimeOffRequestService.findById.mockResolvedValue(null);
 
-      await expect(controller.findOne('nonexistent')).rejects.toThrow(NotFoundException);
+      await expect(controller.findOne('nonexistent')).rejects.toThrow('Time-off request nonexistent not found');
     });
   });
 
@@ -104,12 +105,14 @@ describe('TimeOffRequestController', () => {
 
     it('throws BadRequestException when employeeId is missing', async () => {
       await expect(controller.findAll(undefined as any, undefined, undefined, undefined)).rejects.toThrow(
-        BadRequestException,
+        'employeeId query parameter is required',
       );
     });
 
     it('throws BadRequestException for invalid status', async () => {
-      await expect(controller.findAll('emp-1', 'INVALID', undefined, undefined)).rejects.toThrow(BadRequestException);
+      await expect(controller.findAll('emp-1', 'INVALID', undefined, undefined)).rejects.toThrow(
+        'Invalid status: INVALID. Must be one of PENDING, APPROVED, REJECTED, CANCELLED',
+      );
     });
 
     it('passes undefined status when not provided (returns all)', async () => {
@@ -181,6 +184,32 @@ describe('TimeOffRequestController', () => {
       mockTimeOffRequestService.reject.mockRejectedValue(new ConflictException('Cannot reject a REJECTED request'));
 
       await expect(controller.reject('req-1', { actorId: 'manager-1' })).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('cancel', () => {
+    it('delegates to service with id and actorId, returns result', async () => {
+      const cancelledRequest = { ...mockRequest, status: 'CANCELLED' };
+      mockTimeOffRequestService.cancel.mockResolvedValue(cancelledRequest);
+
+      const result = await controller.cancel('req-1', { actorId: 'manager-1' });
+
+      expect(result).toEqual(cancelledRequest);
+      expect(mockTimeOffRequestService.cancel).toHaveBeenCalledWith('req-1', 'manager-1');
+    });
+
+    it('propagates NotFoundException from service', async () => {
+      mockTimeOffRequestService.cancel.mockRejectedValue(
+        new NotFoundException('Time-off request nonexistent not found'),
+      );
+
+      await expect(controller.cancel('nonexistent', { actorId: 'manager-1' })).rejects.toThrow(NotFoundException);
+    });
+
+    it('propagates ConflictException from service', async () => {
+      mockTimeOffRequestService.cancel.mockRejectedValue(new ConflictException('Cannot cancel a CANCELLED request'));
+
+      await expect(controller.cancel('req-1', { actorId: 'manager-1' })).rejects.toThrow(ConflictException);
     });
   });
 });
