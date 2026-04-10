@@ -35,7 +35,7 @@ These instructions are mandatory for every agent working in this repository.
 - Follow the style used in the GCB Nest services: assert responses, class interactions, and dependency calls with minimal setup.
 - Keep integration tests in-process with Nest + Supertest unless the user approves a different strategy.
 - Add or update mutation testing targets when a feature stabilizes.
-- Run mutation testing with `npm run stryker` (scoped to files changed vs `origin/main`). Use `npm run stryker:all` only when verifying the full baseline. Never use `--incremental`; git worktrees start with a cold cache so it provides no benefit.
+- Run mutation testing with `npx stryker run --mutate <file1>,<file2>`, listing only the source files relevant to the current feature. Never mutate all files at once — it is a heavy CPU operation. Use `npm run stryker` without --mutate only when verifying the full baseline. Never use `--incremental`; git worktrees start with a cold cache so it provides no benefit.
 
 ## Documentation Rules
 - Keep the master TDR current.
