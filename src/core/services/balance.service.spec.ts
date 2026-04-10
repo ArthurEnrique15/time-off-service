@@ -25,6 +25,7 @@ describe('BalanceService', () => {
       findUnique: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
+      create: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -260,6 +261,43 @@ describe('BalanceService', () => {
       mockPrismaService.balance.findUnique.mockResolvedValue(null);
 
       await expect(service.setAvailableDays('emp-1', 'loc-1', 30)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('upsertBalance', () => {
+    beforeEach(() => {
+      mockPrismaService.$transaction.mockImplementation((cb: (tx: typeof mockPrismaService) => unknown) => cb(mockPrismaService));
+    });
+
+    it('creates a new balance when the pair does not exist, returning wasCreated true and previousAvailableDays 0', async () => {
+      const createdBalance = { ...mockBalance, availableDays: 15 };
+      mockPrismaService.balance.findUnique.mockResolvedValue(null);
+      mockPrismaService.balance.create.mockResolvedValue(createdBalance);
+
+      const result = await service.upsertBalance('emp-1', 'loc-1', 15);
+
+      expect(result.wasCreated).toBe(true);
+      expect(result.previousAvailableDays).toBe(0);
+      expect(result.balance).toEqual(createdBalance);
+      expect(mockPrismaService.balance.create).toHaveBeenCalledWith({
+        data: { employeeId: 'emp-1', locationId: 'loc-1', availableDays: 15 },
+      });
+    });
+
+    it('updates an existing balance when the pair exists, returning wasCreated false and the prior availableDays', async () => {
+      const updatedBalance = { ...mockBalance, availableDays: 30 };
+      mockPrismaService.balance.findUnique.mockResolvedValue(mockBalance); // existing: availableDays 20
+      mockPrismaService.balance.update.mockResolvedValue(updatedBalance);
+
+      const result = await service.upsertBalance('emp-1', 'loc-1', 30);
+
+      expect(result.wasCreated).toBe(false);
+      expect(result.previousAvailableDays).toBe(20);
+      expect(result.balance).toEqual(updatedBalance);
+      expect(mockPrismaService.balance.update).toHaveBeenCalledWith({
+        where: { employeeId_locationId: { employeeId: 'emp-1', locationId: 'loc-1' } },
+        data: { availableDays: 30 },
+      });
     });
   });
 });
