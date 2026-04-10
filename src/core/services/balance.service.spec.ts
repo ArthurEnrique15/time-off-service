@@ -318,6 +318,17 @@ describe('BalanceService', () => {
         InsufficientBalanceError,
       );
     });
+
+    it('succeeds when confirming exactly the reserved days in tx', async () => {
+      const exactBalance = { ...mockBalance, reservedDays: 5 };
+      const updatedBalance = { ...exactBalance, reservedDays: 0 };
+      mockPrismaService.balance.findUnique.mockResolvedValue(exactBalance);
+      mockPrismaService.balance.update.mockResolvedValue(updatedBalance);
+
+      const result = await service.confirmDeductionInTx(mockPrismaService as any, 'emp-1', 'loc-1', 5);
+
+      expect(result).toEqual(updatedBalance);
+    });
   });
 
   describe('releaseReservationInTx', () => {
@@ -352,6 +363,17 @@ describe('BalanceService', () => {
       await expect(service.releaseReservationInTx(mockPrismaService as any, 'emp-1', 'loc-1', 5)).rejects.toThrow(
         InsufficientBalanceError,
       );
+    });
+
+    it('succeeds when releasing exactly the reserved days in tx', async () => {
+      const exactBalance = { ...mockBalance, reservedDays: 5, availableDays: 0 };
+      const updatedBalance = { ...exactBalance, reservedDays: 0, availableDays: 5 };
+      mockPrismaService.balance.findUnique.mockResolvedValue(exactBalance);
+      mockPrismaService.balance.update.mockResolvedValue(updatedBalance);
+
+      const result = await service.releaseReservationInTx(mockPrismaService as any, 'emp-1', 'loc-1', 5);
+
+      expect(result).toEqual(updatedBalance);
     });
   });
 

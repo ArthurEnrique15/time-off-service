@@ -69,21 +69,6 @@ export class BalanceService {
     });
   }
 
-  async confirmDeductionInTx(tx: TxClient, employeeId: string, locationId: string, days: number): Promise<Balance> {
-    const balance = await this.findAndValidateExists(tx, employeeId, locationId);
-
-    if (balance.reservedDays < days) {
-      throw new InsufficientBalanceError(employeeId, locationId, days, balance.reservedDays);
-    }
-
-    return tx.balance.update({
-      where: { employeeId_locationId: { employeeId, locationId } },
-      data: {
-        reservedDays: { decrement: days },
-      },
-    });
-  }
-
   async releaseReservationInTx(tx: TxClient, employeeId: string, locationId: string, days: number): Promise<Balance> {
     const balance = await this.findAndValidateExists(tx, employeeId, locationId);
 
@@ -114,6 +99,21 @@ export class BalanceService {
           reservedDays: { decrement: days },
         },
       });
+    });
+  }
+
+  async confirmDeductionInTx(tx: TxClient, employeeId: string, locationId: string, days: number): Promise<Balance> {
+    const balance = await this.findAndValidateExists(tx, employeeId, locationId);
+
+    if (balance.reservedDays < days) {
+      throw new InsufficientBalanceError(employeeId, locationId, days, balance.reservedDays);
+    }
+
+    return tx.balance.update({
+      where: { employeeId_locationId: { employeeId, locationId } },
+      data: {
+        reservedDays: { decrement: days },
+      },
     });
   }
 
