@@ -21,6 +21,7 @@ describe('Time-off request integration', () => {
       balances: [
         { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, availableDays: 1000 },
         { employeeId: EMPLOYEE_ID, locationId: 'loc-hcm-low', availableDays: 1 },
+        { employeeId: EMPLOYEE_ID, locationId: 'loc-hcm-cancel-down', availableDays: 1000 },
       ],
     });
     const testEnvironment = setTestEnvironment({ hcmBaseUrl: mockHcmServer.baseUrl });
@@ -53,12 +54,13 @@ describe('Time-off request integration', () => {
 
   afterEach(async () => {
     mockHcmHandlers.submitTimeOff = undefined;
+    mockHcmHandlers.cancelTimeOff = undefined;
     await prisma.balanceAuditEntry.deleteMany({});
     await prisma.timeOffRequest.deleteMany({});
     await prisma.balance.deleteMany({
       where: {
         employeeId: EMPLOYEE_ID,
-        locationId: { in: ['loc-unknown-in-hcm', 'loc-hcm-low', 'loc-hcm-down'] },
+        locationId: { in: ['loc-unknown-in-hcm', 'loc-hcm-low', 'loc-hcm-down', 'loc-hcm-cancel-down'] },
       },
     });
     await prisma.balance.updateMany({
@@ -942,10 +944,55 @@ describe('Time-off request integration', () => {
       const balance = await prisma.balance.findUnique({
         where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID } },
       });
+      const cancelAuditEntry = await prisma.balanceAuditEntry.findFirst({
+        where: { requestId: createRes.body.id, reason: 'CANCELLATION_RESTORE' },
+      });
 
       expect(storedRequest!.status).toBe('APPROVED');
       expect(balance!.availableDays).toBe(15);
       expect(balance!.reservedDays).toBe(0);
+      expect(cancelAuditEntry).toBeNull();
+    });
+
+    describe('when HCM is unavailable during cancellation', () => {
+      beforeEach(async () => {
+        await prisma.balance.create({
+          data: { employeeId: EMPLOYEE_ID, locationId: 'loc-hcm-cancel-down', availableDays: 20 },
+        });
+        mockHcmHandlers.cancelTimeOff = () => ({
+          statusCode: 500,
+          body: { message: 'downstream unavailable' },
+        });
+      });
+
+      it('returns 503, keeps the request APPROVED, and leaves the balance unchanged', async () => {
+        const createRes = await request(app.getHttpServer())
+          .post('/time-off-requests')
+          .send({
+            employeeId: EMPLOYEE_ID,
+            locationId: 'loc-hcm-cancel-down',
+            startDate: '2025-09-01',
+            endDate: '2025-09-05',
+          })
+          .expect(201);
+
+        await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/approve`).expect(200);
+
+        await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/cancel`).expect(503);
+
+        const record = await prisma.timeOffRequest.findUnique({ where: { id: createRes.body.id } });
+        const balance = await prisma.balance.findUnique({
+          where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: 'loc-hcm-cancel-down' } },
+        });
+        const cancelAuditEntry = await prisma.balanceAuditEntry.findFirst({
+          where: { requestId: createRes.body.id, reason: 'CANCELLATION_RESTORE' },
+        });
+
+        expect(record!.status).toBe('APPROVED');
+        expect(balance!.availableDays).toBe(15);
+        expect(balance!.reservedDays).toBe(0);
+        expect(cancelAuditEntry).toBeNull();
+      });
     });
   });
 });

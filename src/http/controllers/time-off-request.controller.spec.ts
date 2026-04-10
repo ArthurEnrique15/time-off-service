@@ -226,6 +226,14 @@ describe('TimeOffRequestController', () => {
       expect(mockTimeOffRequestService.cancel).toHaveBeenCalledWith('req-1', 'manager-1');
     });
 
+    it('calls service with undefined actorId when body is empty', async () => {
+      mockTimeOffRequestService.cancel.mockResolvedValue({ ...mockRequest, status: 'CANCELLED' });
+
+      await controller.cancel('req-1', {});
+
+      expect(mockTimeOffRequestService.cancel).toHaveBeenCalledWith('req-1', undefined);
+    });
+
     it('propagates NotFoundException from service', async () => {
       mockTimeOffRequestService.cancel.mockRejectedValue(
         new NotFoundException('Time-off request nonexistent not found'),
@@ -238,6 +246,12 @@ describe('TimeOffRequestController', () => {
       mockTimeOffRequestService.cancel.mockRejectedValue(new ConflictException('Cannot cancel a CANCELLED request'));
 
       await expect(controller.cancel('req-1', { actorId: 'manager-1' })).rejects.toThrow(ConflictException);
+    });
+
+    it('propagates ServiceUnavailableException from service', async () => {
+      mockTimeOffRequestService.cancel.mockRejectedValue(new ServiceUnavailableException('HCM service is unavailable'));
+
+      await expect(controller.cancel('req-1', { actorId: 'manager-1' })).rejects.toThrow(ServiceUnavailableException);
     });
   });
 });

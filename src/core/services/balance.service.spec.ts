@@ -263,6 +263,7 @@ describe('BalanceService', () => {
       await expect(service.restoreBalanceInTx(mockPrismaService as any, 'emp-1', 'loc-1', 3)).rejects.toThrow(
         NotFoundException,
       );
+      expect(mockPrismaService.balance.update).not.toHaveBeenCalled();
     });
   });
 

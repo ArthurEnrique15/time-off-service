@@ -7,6 +7,8 @@ keep the local service and HCM aligned, restore the employee's available balance
 and write an audit entry describing the restoration.
 
 This feature depends on:
+- F2 (Balance Management) — `BalanceService.restoreBalanceInTx()` to increment
+  `availableDays` inside the cancellation transaction
 - F3 (Balance Audit Trail) — `BalanceAuditService.recordEntryInTx()` with
   `CANCELLATION_RESTORE`
 - F4 (HCM Client) — `HcmClient.cancelTimeOff()` returning
@@ -42,12 +44,17 @@ This feature depends on:
   (inside a single Prisma transaction):
   - Update the `TimeOffRequest` status to `CANCELLED`
   - Call `BalanceService.restoreBalanceInTx()` to increment `availableDays` by
-    `daysRequested`
+    `daysRequested` (`reservedDays` is not modified — it was already zeroed by
+    `confirmDeductionInTx()` at approval time)
   - Call `BalanceAuditService.recordEntryInTx()` with
     `reason: 'CANCELLATION_RESTORE'`, `delta: +daysRequested`, `balanceId`,
     `requestId`, and the forwarded `actorId` when provided
-- The system shall return a `200` response with the updated `TimeOffRequest` as
-  JSON after the transaction commits.
+- When the Prisma transaction commits successfully, the system shall return a `200`
+  response with the updated `TimeOffRequest` as JSON.
+- When `HcmClient.cancelTimeOff()` returns `Success` but the Prisma transaction
+  fails, the system shall propagate the database error (HTTP 500). The local
+  request remains `APPROVED` while HCM has already cancelled the remote record;
+  reconciliation is deferred to F11.
 
 ### Request Body
 
@@ -78,6 +85,14 @@ This feature depends on:
 | HCM returns `UNKNOWN` | 503 |
 | Successful cancellation | 200 |
 
+## BalanceService Extension
+
+F10 adds `restoreBalanceInTx(tx, employeeId, locationId, days)` to `BalanceService`.
+This is the transactional counterpart of the existing `restoreBalance()`, following
+the `InTx` pattern established in F8/F9 (`confirmDeductionInTx`,
+`releaseReservationInTx`). The standalone `restoreBalance()` delegates to this new
+helper.
+
 ## Testing Requirements
 
 ### Unit Tests — `TimeOffRequestService`
@@ -86,6 +101,7 @@ This feature depends on:
   status updated to `CANCELLED`, `restoreBalanceInTx()` called, and
   `recordEntryInTx()` called with `CANCELLATION_RESTORE`.
 - Cancel with `actorId`: `actorId` forwarded to audit logging.
+- Cancel without `actorId`: `recordEntryInTx()` called with `actorId` omitted.
 - Cancel not found → `NotFoundException` thrown.
 - Cancel non-APPROVED (`PENDING`, `REJECTED`, `CANCELLED`) → `ConflictException`
   thrown.
@@ -98,6 +114,8 @@ This feature depends on:
 
 - `cancel()` delegates to service and returns the result with HTTP 200.
 - `cancel()` forwards the optional `actorId`.
+- `cancel()` calls service with `actorId: undefined` when no body is provided.
+- `cancel()` propagates `404`, `409`, and `503` from the service without wrapping.
 
 ### Unit Tests — `BalanceService`
 
@@ -114,12 +132,18 @@ This feature depends on:
 - Request still `PENDING` → 409.
 - Request already `REJECTED` → 409.
 - Request already `CANCELLED` → 409.
-- Approved request with nonexistent remote HCM request ID → 409 and no local
-  mutation.
+- Approved request where `hcmRequestId` is `null` locally → 409 before HCM is
+  called.
+- Approved request where `hcmRequestId` is set but HCM returns `NOT_FOUND` →
+  409, no local mutation and no `CANCELLATION_RESTORE` audit entry created.
+- HCM returns `UNKNOWN` during cancellation → 503, local request remains
+  `APPROVED`, `availableDays` unchanged, no audit entry created.
 
 ## Out of Scope
 
-- Approval-time HCM submission redesign (F9 roadmap inconsistency)
+- Approval-time HCM submission redesign (F9 moved HCM submission to approval time,
+  deviating from the original create-time design; that decision is settled and F10
+  does not reopen it)
 - Authentication / authorization
 - Free-form cancellation reason
 - Retry logic or circuit breaking for HCM failures (F11)

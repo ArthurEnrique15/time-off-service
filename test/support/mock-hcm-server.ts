@@ -177,6 +177,26 @@ export const startMockHcmServer = async (options: MockHcmServerOptions = {}) => 
 
     if (method === 'DELETE' && deleteMatch) {
       const [, requestId] = deleteMatch;
+
+      const cancelHandler = (server as any).handlers?.cancelTimeOff as
+        | ((requestId: string) => MockSubmitHandlerResult | undefined)
+        | undefined;
+
+      if (cancelHandler) {
+        const handled = cancelHandler(requestId);
+
+        if (handled) {
+          if (handled.body === undefined) {
+            response.writeHead(handled.statusCode);
+            response.end();
+          } else {
+            json(response, handled.statusCode, handled.body);
+          }
+
+          return;
+        }
+      }
+
       const storedRequest = requestStore.get(requestId);
 
       if (!storedRequest) {
@@ -223,6 +243,7 @@ export const startMockHcmServer = async (options: MockHcmServerOptions = {}) => 
   (server as any).handlers = {
     getBalancesBulk: undefined as ((request: IncomingMessage, response: ServerResponse) => void) | undefined,
     submitTimeOff: undefined as ((requestBody: any) => MockSubmitHandlerResult | undefined) | undefined,
+    cancelTimeOff: undefined as ((requestId: string) => MockSubmitHandlerResult | undefined) | undefined,
   };
 
   return {
