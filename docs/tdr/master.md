@@ -38,6 +38,8 @@
 - F6 time-off request read/list plan: [f6-time-off-request-read-list-plan.md](./feature-plans/f6-time-off-request-read-list-plan.md)
 - F7 HCM batch sync spec: [f7-hcm-batch-sync-spec.md](./specs/f7-hcm-batch-sync-spec.md)
 - F7 HCM batch sync plan: [f7-hcm-batch-sync-plan.md](./feature-plans/f7-hcm-batch-sync-plan.md)
+- F8 manager approval spec: [f8-manager-approval-spec.md](./specs/f8-manager-approval-spec.md)
+- F8 manager approval plan: [f8-manager-approval-plan.md](./feature-plans/f8-manager-approval-plan.md)
 
 ## F7 Design Decisions
 
@@ -56,6 +58,19 @@ Resolved during F7 brainstorming. These are authoritative for the HCM batch sync
 | `upsertBalance` location | Added to `BalanceService` | Keeps all balance mutations in one place |
 | HTTP status on partial success | 200 | Batch ran to completion; body describes individual outcomes |
 | Input validation | class-validator DTOs + global `ValidationPipe` | F7 is first feature with nested array validation; DTOs are the right tool |
+
+## F8 Design Decisions
+
+Resolved during F8 brainstorming. These are authoritative for the manager approval feature and downstream consumers.
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Non-PENDING status error | 409 Conflict | Signals resource state conflict, not a validation error |
+| Request body | Optional `actorId` string | Audit trail supports actorId; auth is out of scope so no required field |
+| Balance ID for audit | Returned from InTx method | InTx methods return updated Balance; ID is stable across update |
+| Return type | Updated `TimeOffRequest` | Standard REST convention for PATCH |
+| HTTP success code | 200 | Default for PATCH; no `@HttpCode` decorator needed |
+| HCM call on approval | None (deferred to F9) | F8 scope is local state only |
 
 ## Pending Product Definitions
 - Canonical terminology for balances, requests, adjustments, and sync events
