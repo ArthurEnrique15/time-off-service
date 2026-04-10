@@ -2,11 +2,13 @@ import { PrismaModule } from '@app-prisma/prisma.module';
 
 import { BalanceAuditService } from '@core/services/balance-audit.service';
 import { BalanceService } from '@core/services/balance.service';
+import { BatchSyncService } from '@core/services/batch-sync.service';
 import { HealthService } from '@core/services/health.service';
 
 import { BalanceAuditController } from '@http/controllers/balance-audit.controller';
 import { BalanceController } from '@http/controllers/balance.controller';
 import { HealthController } from '@http/controllers/health.controller';
+import { SyncController } from '@http/controllers/sync.controller';
 
 import { timeOffModuleControllers } from '@module/controllers';
 import { timeOffModuleImports } from '@module/imports';
@@ -21,10 +23,10 @@ describe('time-off module assembly', () => {
   });
 
   it('declares the expected providers', () => {
-    expect(timeOffModuleProviders).toEqual([BalanceService, HealthService, BalanceAuditService]);
+    expect(timeOffModuleProviders).toEqual([BalanceService, HealthService, BalanceAuditService, BatchSyncService]);
   });
 
   it('declares the expected controllers', () => {
-    expect(timeOffModuleControllers).toEqual([BalanceController, HealthController, BalanceAuditController]);
+    expect(timeOffModuleControllers).toEqual([BalanceController, HealthController, BalanceAuditController, SyncController]);
   });
 });
