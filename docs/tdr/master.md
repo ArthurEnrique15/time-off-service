@@ -14,6 +14,47 @@
 - Integration testing: in-process Nest application with Supertest and mock HCM endpoints
 - Mutation testing: Stryker, expanded incrementally feature-by-feature
 
+## System Architecture & Alternatives Considered
+
+### Chosen Approach: Local-Cache Microservice with Defensive Dual-Validation
+
+The service maintains a local SQLite cache of employee balances and time-off requests. On request creation, it validates locally (fail-fast) and reserves balance. On manager approval, it submits to HCM (source of truth) before finalizing locally. Batch sync keeps the local cache aligned with HCM's authoritative data.
+
+### Alternative 1: Pass-Through Proxy
+
+All balance reads and time-off writes go directly to HCM in real time. No local persistence for balances.
+
+| Advantage | Disadvantage |
+|---|---|
+| No sync problem — HCM is always the single source | Entirely dependent on HCM availability; any outage blocks all operations |
+| Simpler codebase — no local balance state to manage | Slower UX — every balance check is a network round-trip |
+| No conflict resolution needed | Cannot provide instant feedback on balance sufficiency without HCM |
+
+**Why not chosen:** The take-home explicitly describes a batch sync endpoint and the need for defensive local validation ("this may not always be guaranteed; we want to be defensive"). A pass-through proxy cannot satisfy these requirements.
+
+### Alternative 2: Event-Driven with Eventual Consistency
+
+HCM publishes balance-change events (e.g., via a message broker). The service consumes events asynchronously and updates its local state. Time-off requests are validated locally and submitted to HCM asynchronously.
+
+| Advantage | Disadvantage |
+|---|---|
+| Better decoupling — service and HCM don't need synchronous connectivity | Requires a message broker (Kafka, RabbitMQ) — significant infrastructure for a take-home |
+| Naturally handles HCM-initiated changes (anniversary bonuses, resets) | Eventual consistency means stale reads are possible and must be handled |
+| Higher throughput for batch operations | More complex error handling (dead-letter queues, retry policies, idempotency) |
+
+**Why not chosen:** Introduces infrastructure and complexity (message broker, idempotency, dead-letter handling) disproportionate to the take-home scope. The synchronous batch endpoint achieves the same goal with simpler semantics.
+
+### Data Store: SQLite vs PostgreSQL
+
+| Criterion | SQLite | PostgreSQL |
+|---|---|---|
+| Setup | Zero-config, file-based | Requires server process |
+| Concurrency | Single-writer serialization (sufficient for this scope) | Row-level locking, MVCC |
+| Deployment | Embedded in process | Separate infrastructure |
+| Take-home fit | ✅ Specified in requirements | Overkill for scope |
+
+**Decision:** SQLite, as specified by the task requirements. Its single-writer model provides built-in serialization that prevents race conditions on concurrent balance mutations without application-level locking (see F11 R3).
+
 ## Governance
 - Agents must follow [`AGENTS.md`](/Users/arthur/www/projects/time-off-service/.worktrees/base-foundation/AGENTS.md).
 - Ambiguous requirements must be clarified with the user before implementation.
