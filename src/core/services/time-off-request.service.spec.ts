@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { parseISO } from 'date-fns';
 
@@ -40,6 +40,8 @@ describe('TimeOffRequestService', () => {
   const mockBalanceService = {
     findByEmployeeAndLocation: jest.fn(),
     reserveInTx: jest.fn(),
+    confirmDeductionInTx: jest.fn(),
+    releaseReservationInTx: jest.fn(),
   };
 
   const mockBalanceAuditService = {
@@ -51,8 +53,18 @@ describe('TimeOffRequestService', () => {
     cancelTimeOff: jest.fn().mockResolvedValue(Success.create(undefined)),
   };
 
+  const mockTx = {
+    timeOffRequest: {
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+  };
+
   const mockPrismaService = {
     $transaction: jest.fn(),
+    timeOffRequest: {
+      findUnique: jest.fn(),
+    },
   };
 
   beforeEach(async () => {
@@ -61,6 +73,9 @@ describe('TimeOffRequestService', () => {
     mockBalanceService.reserveInTx.mockResolvedValue(updatedBalance);
     mockBalanceAuditService.recordEntryInTx.mockResolvedValue({});
     mockHcmClient.cancelTimeOff.mockResolvedValue(Success.create(undefined));
+
+    mockTx.timeOffRequest.create.mockResolvedValue(mockRequest);
+    mockTx.timeOffRequest.update.mockResolvedValue(mockRequest);
 
     mockPrismaService.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => {
       const tx = {
@@ -335,6 +350,254 @@ describe('TimeOffRequestService', () => {
       expect(createCall.data.endDate).toBeInstanceOf(Date);
       expect(createCall.data.startDate).toEqual(parseISO('2025-06-01'));
       expect(createCall.data.endDate).toEqual(parseISO('2025-06-05'));
+    });
+  });
+});
+
+describe('TimeOffRequestService — approve', () => {
+  const mockRequest = {
+    id: 'req-1',
+    employeeId: 'emp-1',
+    locationId: 'loc-1',
+    startDate: new Date('2025-06-01'),
+    endDate: new Date('2025-06-05'),
+    status: 'PENDING',
+    hcmRequestId: 'hcm-req-1',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  const approvedRequest = { ...mockRequest, status: 'APPROVED' };
+
+  const mockBalance = {
+    id: 'balance-1',
+    employeeId: 'emp-1',
+    locationId: 'loc-1',
+    availableDays: 15,
+    reservedDays: 5,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  const mockTx = {
+    timeOffRequest: {
+      update: jest.fn(),
+    },
+  };
+
+  const mockPrismaService = {
+    timeOffRequest: {
+      findUnique: jest.fn(),
+    },
+    $transaction: jest.fn((cb: (tx: any) => Promise<any>) => cb(mockTx)),
+  };
+
+  const mockBalanceService = {
+    confirmDeductionInTx: jest.fn(),
+  };
+
+  const mockBalanceAuditService = {
+    recordEntryInTx: jest.fn(),
+  };
+
+  const createService = () =>
+    new TimeOffRequestService(
+      mockPrismaService as any,
+      mockBalanceService as any,
+      mockBalanceAuditService as any,
+      {} as any,
+    );
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPrismaService.timeOffRequest.findUnique.mockResolvedValue(mockRequest);
+    mockTx.timeOffRequest.update.mockResolvedValue(approvedRequest);
+    mockBalanceService.confirmDeductionInTx.mockResolvedValue(mockBalance);
+    mockBalanceAuditService.recordEntryInTx.mockResolvedValue({});
+  });
+
+  it('throws NotFoundException when request is not found', async () => {
+    mockPrismaService.timeOffRequest.findUnique.mockResolvedValue(null);
+    const service = createService();
+
+    await expect(service.approve('req-missing')).rejects.toThrow(
+      new NotFoundException('Time-off request req-missing not found'),
+    );
+  });
+
+  it('throws ConflictException when request status is APPROVED', async () => {
+    mockPrismaService.timeOffRequest.findUnique.mockResolvedValue({ ...mockRequest, status: 'APPROVED' });
+    const service = createService();
+
+    await expect(service.approve('req-1')).rejects.toThrow(
+      new ConflictException('Cannot approve a APPROVED request'),
+    );
+  });
+
+  it('throws ConflictException when request status is REJECTED', async () => {
+    mockPrismaService.timeOffRequest.findUnique.mockResolvedValue({ ...mockRequest, status: 'REJECTED' });
+    const service = createService();
+
+    await expect(service.approve('req-1')).rejects.toThrow(
+      new ConflictException('Cannot approve a REJECTED request'),
+    );
+  });
+
+  it('throws ConflictException when request status is CANCELLED', async () => {
+    mockPrismaService.timeOffRequest.findUnique.mockResolvedValue({ ...mockRequest, status: 'CANCELLED' });
+    const service = createService();
+
+    await expect(service.approve('req-1')).rejects.toThrow(
+      new ConflictException('Cannot approve a CANCELLED request'),
+    );
+  });
+
+  it('calls tx.timeOffRequest.update with APPROVED, calls confirmDeductionInTx, calls recordEntryInTx with APPROVAL_DEDUCTION and delta -days', async () => {
+    const service = createService();
+
+    const result = await service.approve('req-1');
+
+    expect(mockTx.timeOffRequest.update).toHaveBeenCalledWith({
+      where: { id: 'req-1' },
+      data: { status: 'APPROVED' },
+    });
+    expect(mockBalanceService.confirmDeductionInTx).toHaveBeenCalledWith(mockTx, 'emp-1', 'loc-1', 5);
+    expect(mockBalanceAuditService.recordEntryInTx).toHaveBeenCalledWith(mockTx, {
+      balanceId: 'balance-1',
+      delta: -5,
+      reason: 'APPROVAL_DEDUCTION',
+      requestId: 'req-1',
+      actorId: undefined,
+    });
+    expect(result).toEqual(approvedRequest);
+  });
+
+  it('forwards actorId to recordEntryInTx', async () => {
+    const service = createService();
+
+    await service.approve('req-1', 'manager-42');
+
+    expect(mockBalanceAuditService.recordEntryInTx).toHaveBeenCalledWith(mockTx, {
+      balanceId: 'balance-1',
+      delta: -5,
+      reason: 'APPROVAL_DEDUCTION',
+      requestId: 'req-1',
+      actorId: 'manager-42',
+    });
+  });
+});
+
+describe('TimeOffRequestService — reject', () => {
+  const mockRequest = {
+    id: 'req-1',
+    employeeId: 'emp-1',
+    locationId: 'loc-1',
+    startDate: new Date('2025-06-01'),
+    endDate: new Date('2025-06-05'),
+    status: 'PENDING',
+    hcmRequestId: 'hcm-req-1',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  const rejectedRequest = { ...mockRequest, status: 'REJECTED' };
+
+  const mockBalance = {
+    id: 'balance-1',
+    employeeId: 'emp-1',
+    locationId: 'loc-1',
+    availableDays: 20,
+    reservedDays: 0,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  const mockTx = {
+    timeOffRequest: {
+      update: jest.fn(),
+    },
+  };
+
+  const mockPrismaService = {
+    timeOffRequest: {
+      findUnique: jest.fn(),
+    },
+    $transaction: jest.fn((cb: (tx: any) => Promise<any>) => cb(mockTx)),
+  };
+
+  const mockBalanceService = {
+    releaseReservationInTx: jest.fn(),
+  };
+
+  const mockBalanceAuditService = {
+    recordEntryInTx: jest.fn(),
+  };
+
+  const createService = () =>
+    new TimeOffRequestService(
+      mockPrismaService as any,
+      mockBalanceService as any,
+      mockBalanceAuditService as any,
+      {} as any,
+    );
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPrismaService.timeOffRequest.findUnique.mockResolvedValue(mockRequest);
+    mockTx.timeOffRequest.update.mockResolvedValue(rejectedRequest);
+    mockBalanceService.releaseReservationInTx.mockResolvedValue(mockBalance);
+    mockBalanceAuditService.recordEntryInTx.mockResolvedValue({});
+  });
+
+  it('throws NotFoundException when request is not found', async () => {
+    mockPrismaService.timeOffRequest.findUnique.mockResolvedValue(null);
+    const service = createService();
+
+    await expect(service.reject('req-missing')).rejects.toThrow(
+      new NotFoundException('Time-off request req-missing not found'),
+    );
+  });
+
+  it('throws ConflictException when request status is APPROVED', async () => {
+    mockPrismaService.timeOffRequest.findUnique.mockResolvedValue({ ...mockRequest, status: 'APPROVED' });
+    const service = createService();
+
+    await expect(service.reject('req-1')).rejects.toThrow(
+      new ConflictException('Cannot reject a APPROVED request'),
+    );
+  });
+
+  it('calls tx.timeOffRequest.update with REJECTED, calls releaseReservationInTx, calls recordEntryInTx with RESERVATION_RELEASE and delta +days', async () => {
+    const service = createService();
+
+    const result = await service.reject('req-1');
+
+    expect(mockTx.timeOffRequest.update).toHaveBeenCalledWith({
+      where: { id: 'req-1' },
+      data: { status: 'REJECTED' },
+    });
+    expect(mockBalanceService.releaseReservationInTx).toHaveBeenCalledWith(mockTx, 'emp-1', 'loc-1', 5);
+    expect(mockBalanceAuditService.recordEntryInTx).toHaveBeenCalledWith(mockTx, {
+      balanceId: 'balance-1',
+      delta: 5,
+      reason: 'RESERVATION_RELEASE',
+      requestId: 'req-1',
+      actorId: undefined,
+    });
+    expect(result).toEqual(rejectedRequest);
+  });
+
+  it('forwards actorId to recordEntryInTx', async () => {
+    const service = createService();
+
+    await service.reject('req-1', 'manager-42');
+
+    expect(mockBalanceAuditService.recordEntryInTx).toHaveBeenCalledWith(mockTx, {
+      balanceId: 'balance-1',
+      delta: 5,
+      reason: 'RESERVATION_RELEASE',
+      requestId: 'req-1',
+      actorId: 'manager-42',
     });
   });
 });

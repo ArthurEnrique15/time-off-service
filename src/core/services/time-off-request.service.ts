@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
@@ -142,6 +143,48 @@ export class TimeOffRequestService {
         totalPages: Math.ceil(total / limit) || 0,
       },
     };
+  }
+
+  async approve(id: string, actorId?: string): Promise<TimeOffRequest> {
+    const request = await this.findById(id);
+
+    if (!request) {
+      throw new NotFoundException(`Time-off request ${id} not found`);
+    }
+
+    if (request.status !== 'PENDING') {
+      throw new ConflictException(`Cannot approve a ${request.status} request`);
+    }
+
+    const daysRequested = differenceInCalendarDays(request.endDate, request.startDate) + 1;
+
+    return this.prismaService.$transaction(async (tx) => {
+      const updatedRequest = await tx.timeOffRequest.update({ where: { id }, data: { status: 'APPROVED' } });
+      const balance = await this.balanceService.confirmDeductionInTx(tx, request.employeeId, request.locationId, daysRequested);
+      await this.balanceAuditService.recordEntryInTx(tx, { balanceId: balance.id, delta: -daysRequested, reason: 'APPROVAL_DEDUCTION', requestId: id, actorId });
+      return updatedRequest;
+    });
+  }
+
+  async reject(id: string, actorId?: string): Promise<TimeOffRequest> {
+    const request = await this.findById(id);
+
+    if (!request) {
+      throw new NotFoundException(`Time-off request ${id} not found`);
+    }
+
+    if (request.status !== 'PENDING') {
+      throw new ConflictException(`Cannot reject a ${request.status} request`);
+    }
+
+    const daysRequested = differenceInCalendarDays(request.endDate, request.startDate) + 1;
+
+    return this.prismaService.$transaction(async (tx) => {
+      const updatedRequest = await tx.timeOffRequest.update({ where: { id }, data: { status: 'REJECTED' } });
+      const balance = await this.balanceService.releaseReservationInTx(tx, request.employeeId, request.locationId, daysRequested);
+      await this.balanceAuditService.recordEntryInTx(tx, { balanceId: balance.id, delta: daysRequested, reason: 'RESERVATION_RELEASE', requestId: id, actorId });
+      return updatedRequest;
+    });
   }
 
   private throwHcmError(error: HcmError): never {
