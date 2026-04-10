@@ -4,7 +4,7 @@ const config: Config = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   rootDir: '.',
   roots: ['<rootDir>/test'],
-  testRegex: '.*\\.integration-spec\\.ts$',
+  testRegex: '.*\\.test\\.ts$',
   transform: {
     '^.+\\.(t|j)sx?$': '@swc/jest',
   },
