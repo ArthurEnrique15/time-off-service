@@ -995,4 +995,87 @@ describe('Time-off request integration', () => {
       });
     });
   });
+
+  describe('End-to-end lifecycle: create → approve → cancel', () => {
+    it('completes the full request lifecycle and restores the balance', async () => {
+      const balanceBefore = await prisma.balance.findUnique({
+        where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID } },
+      });
+
+      // Step 1: Create a time-off request
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({
+          employeeId: EMPLOYEE_ID,
+          locationId: LOCATION_ID,
+          startDate: '2025-10-01',
+          endDate: '2025-10-05',
+        })
+        .expect(201);
+
+      expect(createRes.body.status).toBe('PENDING');
+      expect(createRes.body.hcmRequestId).toBeNull();
+
+      const requestId = createRes.body.id;
+
+      // Step 2: Approve the request
+      const approveRes = await request(app.getHttpServer())
+        .patch(`/time-off-requests/${requestId}/approve`)
+        .send({ actorId: 'manager-e2e' })
+        .expect(200);
+
+      expect(approveRes.body.status).toBe('APPROVED');
+      expect(approveRes.body.hcmRequestId).toBeTruthy();
+
+      // Step 3: Cancel the approved request
+      const cancelRes = await request(app.getHttpServer())
+        .patch(`/time-off-requests/${requestId}/cancel`)
+        .send({ actorId: 'manager-e2e' })
+        .expect(200);
+
+      expect(cancelRes.body.status).toBe('CANCELLED');
+
+      // Step 4: Verify balance is fully restored
+      const balanceAfter = await prisma.balance.findUnique({
+        where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID } },
+      });
+
+      expect(balanceAfter!.availableDays).toBe(balanceBefore!.availableDays);
+      expect(balanceAfter!.reservedDays).toBe(0);
+
+      // Step 5: Verify the complete audit trail
+      const auditEntries = await prisma.balanceAuditEntry.findMany({
+        where: { balanceId: balanceAfter!.id },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      expect(auditEntries.map((e) => e.reason)).toEqual([
+        'RESERVATION',
+        'APPROVAL_DEDUCTION',
+        'HCM_SYNC',
+        'CANCELLATION_RESTORE',
+      ]);
+
+      // Verify audit deltas tell a consistent story
+      expect(auditEntries[0].delta).toBe(-5); // RESERVATION: -5
+      expect(auditEntries[1].delta).toBe(-5); // APPROVAL_DEDUCTION: -5
+      expect(auditEntries[2].delta).toBe(0); // HCM_SYNC (approve): 0
+      expect(auditEntries[3].delta).toBe(5); // CANCELLATION_RESTORE: +5
+
+      // Verify all audit entries reference the same request
+      for (const entry of auditEntries) {
+        if (entry.reason !== 'HCM_SYNC') {
+          expect(entry.requestId).toBe(requestId);
+        }
+      }
+
+      // Verify the final request state
+      const finalRequest = await prisma.timeOffRequest.findUnique({
+        where: { id: requestId },
+      });
+
+      expect(finalRequest!.status).toBe('CANCELLED');
+      expect(finalRequest!.hcmRequestId).toBeTruthy();
+    });
+  });
 });
