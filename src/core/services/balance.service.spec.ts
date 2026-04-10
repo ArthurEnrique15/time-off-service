@@ -275,6 +275,9 @@ describe('BalanceService', () => {
       expect(result.wasCreated).toBe(true);
       expect(result.previousAvailableDays).toBe(0);
       expect(result.balance).toEqual(createdBalance);
+      expect(mockPrismaService.balance.findUnique).toHaveBeenCalledWith({
+        where: { employeeId_locationId: { employeeId: 'emp-1', locationId: 'loc-1' } },
+      });
       expect(mockPrismaService.balance.create).toHaveBeenCalledWith({
         data: { employeeId: 'emp-1', locationId: 'loc-1', availableDays: 15 },
       });
@@ -290,6 +293,9 @@ describe('BalanceService', () => {
       expect(result.wasCreated).toBe(false);
       expect(result.previousAvailableDays).toBe(20);
       expect(result.balance).toEqual(updatedBalance);
+      expect(mockPrismaService.balance.findUnique).toHaveBeenCalledWith({
+        where: { employeeId_locationId: { employeeId: 'emp-1', locationId: 'loc-1' } },
+      });
       expect(mockPrismaService.balance.update).toHaveBeenCalledWith({
         where: { employeeId_locationId: { employeeId: 'emp-1', locationId: 'loc-1' } },
         data: { availableDays: 30 },
