@@ -813,4 +813,134 @@ describe('Time-off request integration', () => {
       await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/reject`).expect(409);
     });
   });
+
+  describe('PATCH /time-off-requests/:id/cancel', () => {
+    it('returns 200 with status CANCELLED for an approved request', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-09-01', endDate: '2025-09-05' })
+        .expect(201);
+
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/approve`).expect(200);
+
+      const response = await request(app.getHttpServer())
+        .patch(`/time-off-requests/${createRes.body.id}/cancel`)
+        .expect(200);
+
+      expect(response.body.status).toBe('CANCELLED');
+      expect(response.body.id).toBe(createRes.body.id);
+    });
+
+    it('restores availableDays and records a CANCELLATION_RESTORE audit entry', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-09-01', endDate: '2025-09-05' })
+        .expect(201);
+
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/approve`).expect(200);
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/cancel`).expect(200);
+
+      const balance = await prisma.balance.findUnique({
+        where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID } },
+      });
+
+      expect(balance!.availableDays).toBe(20);
+      expect(balance!.reservedDays).toBe(0);
+
+      const auditEntry = await prisma.balanceAuditEntry.findFirst({
+        where: { balanceId: balance!.id, reason: 'CANCELLATION_RESTORE' },
+      });
+
+      expect(auditEntry).not.toBeNull();
+      expect(auditEntry!.delta).toBe(5);
+      expect(auditEntry!.requestId).toBe(createRes.body.id);
+    });
+
+    it('records actorId in the cancellation audit entry when provided', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-09-01', endDate: '2025-09-05' })
+        .expect(201);
+
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/approve`).expect(200);
+
+      await request(app.getHttpServer())
+        .patch(`/time-off-requests/${createRes.body.id}/cancel`)
+        .send({ actorId: 'manager-3' })
+        .expect(200);
+
+      const balance = await prisma.balance.findUnique({
+        where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID } },
+      });
+
+      const auditEntry = await prisma.balanceAuditEntry.findFirst({
+        where: { balanceId: balance!.id, reason: 'CANCELLATION_RESTORE' },
+      });
+
+      expect(auditEntry!.actorId).toBe('manager-3');
+    });
+
+    it('returns 404 when request does not exist', async () => {
+      await request(app.getHttpServer()).patch('/time-off-requests/non-existent-id/cancel').expect(404);
+    });
+
+    it('returns 409 when request is still PENDING', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-09-01', endDate: '2025-09-05' })
+        .expect(201);
+
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/cancel`).expect(409);
+    });
+
+    it('returns 409 when request is REJECTED', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-09-01', endDate: '2025-09-05' })
+        .expect(201);
+
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/reject`).expect(200);
+
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/cancel`).expect(409);
+    });
+
+    it('returns 409 when request is already CANCELLED', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-09-01', endDate: '2025-09-05' })
+        .expect(201);
+
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/approve`).expect(200);
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/cancel`).expect(200);
+
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/cancel`).expect(409);
+    });
+
+    it('returns 409 and leaves local state unchanged when the remote HCM request does not exist', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/time-off-requests')
+        .send({ employeeId: EMPLOYEE_ID, locationId: LOCATION_ID, startDate: '2025-09-01', endDate: '2025-09-05' })
+        .expect(201);
+
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/approve`).expect(200);
+
+      await prisma.timeOffRequest.update({
+        where: { id: createRes.body.id },
+        data: { hcmRequestId: 'missing-remote-request' },
+      });
+
+      await request(app.getHttpServer()).patch(`/time-off-requests/${createRes.body.id}/cancel`).expect(409);
+
+      const storedRequest = await prisma.timeOffRequest.findUnique({
+        where: { id: createRes.body.id },
+      });
+      const balance = await prisma.balance.findUnique({
+        where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: LOCATION_ID } },
+      });
+
+      expect(storedRequest!.status).toBe('APPROVED');
+      expect(balance!.availableDays).toBe(15);
+      expect(balance!.reservedDays).toBe(0);
+    });
+  });
 });

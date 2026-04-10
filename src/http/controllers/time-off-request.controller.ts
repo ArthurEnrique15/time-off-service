@@ -82,4 +82,10 @@ export class TimeOffRequestController {
   reject(@Param('id') id: string, @Body() dto: ApproveRejectTimeOffRequestDto): Promise<TimeOffRequest> {
     return this.timeOffRequestService.reject(id, dto.actorId);
   }
+
+  @Patch(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  cancel(@Param('id') id: string, @Body() dto: ApproveRejectTimeOffRequestDto): Promise<TimeOffRequest> {
+    return this.timeOffRequestService.cancel(id, dto.actorId);
+  }
 }

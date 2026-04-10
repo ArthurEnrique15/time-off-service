@@ -258,12 +258,65 @@ export class TimeOffRequestService {
     });
   }
 
+  async cancel(id: string, actorId?: string): Promise<TimeOffRequest> {
+    const request = await this.findById(id);
+
+    if (!request) {
+      throw new NotFoundException(`Time-off request ${id} not found`);
+    }
+
+    if (request.status !== 'APPROVED') {
+      throw new ConflictException(`Cannot cancel a ${request.status} request`);
+    }
+
+    if (!request.hcmRequestId) {
+      throw new ConflictException(`Cannot cancel request ${id} without an HCM request ID`);
+    }
+
+    const hcmResult = await this.hcmClient.cancelTimeOff(request.hcmRequestId);
+
+    if (hcmResult.isFailure()) {
+      this.throwCancelHcmError(request.hcmRequestId, hcmResult.value);
+    }
+
+    const daysRequested = differenceInCalendarDays(request.endDate, request.startDate) + 1;
+
+    return this.prismaService.$transaction(async (tx) => {
+      const updatedRequest = await tx.timeOffRequest.update({ where: { id }, data: { status: 'CANCELLED' } });
+      const balance = await this.balanceService.restoreBalanceInTx(
+        tx,
+        request.employeeId,
+        request.locationId,
+        daysRequested,
+      );
+
+      await this.balanceAuditService.recordEntryInTx(tx, {
+        balanceId: balance.id,
+        delta: daysRequested,
+        reason: 'CANCELLATION_RESTORE',
+        requestId: id,
+        actorId,
+      });
+
+      return updatedRequest;
+    });
+  }
+
   private throwHcmError(error: HcmError): never {
     switch (error.code) {
       case 'INSUFFICIENT_BALANCE':
         throw new BadRequestException(error.message);
       case 'INVALID_DIMENSIONS':
         throw new UnprocessableEntityException(error.message);
+      default:
+        throw new ServiceUnavailableException('HCM service is unavailable');
+    }
+  }
+
+  private throwCancelHcmError(hcmRequestId: string, error: HcmError): never {
+    switch (error.code) {
+      case 'NOT_FOUND':
+        throw new ConflictException(`Remote HCM request ${hcmRequestId} was not found`);
       default:
         throw new ServiceUnavailableException('HCM service is unavailable');
     }

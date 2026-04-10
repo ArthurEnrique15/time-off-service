@@ -676,6 +676,172 @@ describe('TimeOffRequestService — reject', () => {
   });
 });
 
+describe('TimeOffRequestService — cancel', () => {
+  const mockRequest = {
+    id: 'req-1',
+    employeeId: 'emp-1',
+    locationId: 'loc-1',
+    startDate: new Date('2025-06-01'),
+    endDate: new Date('2025-06-05'),
+    status: 'APPROVED',
+    hcmRequestId: 'hcm-req-1',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  const cancelledRequest = { ...mockRequest, status: 'CANCELLED' };
+
+  const mockBalance = {
+    id: 'balance-1',
+    employeeId: 'emp-1',
+    locationId: 'loc-1',
+    availableDays: 20,
+    reservedDays: 0,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  const mockTx = {
+    timeOffRequest: {
+      update: jest.fn(),
+    },
+  };
+
+  const mockPrismaService = {
+    timeOffRequest: {
+      findUnique: jest.fn(),
+    },
+    $transaction: jest.fn((cb: (tx: any) => Promise<any>) => cb(mockTx)),
+  };
+
+  const mockBalanceService = {
+    restoreBalanceInTx: jest.fn(),
+  };
+
+  const mockBalanceAuditService = {
+    recordEntryInTx: jest.fn(),
+  };
+
+  const mockHcmClient = {
+    cancelTimeOff: jest.fn(),
+  };
+
+  const createService = () =>
+    new TimeOffRequestService(
+      mockPrismaService as any,
+      mockBalanceService as any,
+      mockBalanceAuditService as any,
+      mockHcmClient as any,
+    );
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPrismaService.timeOffRequest.findUnique.mockResolvedValue(mockRequest);
+    mockTx.timeOffRequest.update.mockResolvedValue(cancelledRequest);
+    mockBalanceService.restoreBalanceInTx.mockResolvedValue(mockBalance);
+    mockBalanceAuditService.recordEntryInTx.mockResolvedValue({});
+    mockHcmClient.cancelTimeOff.mockResolvedValue(Success.create(undefined));
+  });
+
+  it('throws NotFoundException when request is not found', async () => {
+    mockPrismaService.timeOffRequest.findUnique.mockResolvedValue(null);
+    const service = createService();
+
+    await expect(service.cancel('req-missing')).rejects.toThrow(
+      new NotFoundException('Time-off request req-missing not found'),
+    );
+  });
+
+  it('throws ConflictException when request status is PENDING', async () => {
+    mockPrismaService.timeOffRequest.findUnique.mockResolvedValue({ ...mockRequest, status: 'PENDING' });
+    const service = createService();
+
+    await expect(service.cancel('req-1')).rejects.toThrow(new ConflictException('Cannot cancel a PENDING request'));
+  });
+
+  it('throws ConflictException when request status is REJECTED', async () => {
+    mockPrismaService.timeOffRequest.findUnique.mockResolvedValue({ ...mockRequest, status: 'REJECTED' });
+    const service = createService();
+
+    await expect(service.cancel('req-1')).rejects.toThrow(new ConflictException('Cannot cancel a REJECTED request'));
+  });
+
+  it('throws ConflictException when request status is CANCELLED', async () => {
+    mockPrismaService.timeOffRequest.findUnique.mockResolvedValue({ ...mockRequest, status: 'CANCELLED' });
+    const service = createService();
+
+    await expect(service.cancel('req-1')).rejects.toThrow(new ConflictException('Cannot cancel a CANCELLED request'));
+  });
+
+  it('throws ConflictException when an approved request has no hcmRequestId', async () => {
+    mockPrismaService.timeOffRequest.findUnique.mockResolvedValue({ ...mockRequest, hcmRequestId: null });
+    const service = createService();
+
+    await expect(service.cancel('req-1')).rejects.toThrow(
+      new ConflictException('Cannot cancel request req-1 without an HCM request ID'),
+    );
+  });
+
+  it('calls HCM cancellation first, updates the request, restores balance, and records CANCELLATION_RESTORE', async () => {
+    const service = createService();
+
+    const result = await service.cancel('req-1');
+
+    expect(mockHcmClient.cancelTimeOff).toHaveBeenCalledWith('hcm-req-1');
+    expect(mockTx.timeOffRequest.update).toHaveBeenCalledWith({
+      where: { id: 'req-1' },
+      data: { status: 'CANCELLED' },
+    });
+    expect(mockBalanceService.restoreBalanceInTx).toHaveBeenCalledWith(mockTx, 'emp-1', 'loc-1', 5);
+    expect(mockBalanceAuditService.recordEntryInTx).toHaveBeenCalledWith(mockTx, {
+      balanceId: 'balance-1',
+      delta: 5,
+      reason: 'CANCELLATION_RESTORE',
+      requestId: 'req-1',
+      actorId: undefined,
+    });
+    expect(result).toEqual(cancelledRequest);
+  });
+
+  it('forwards actorId to recordEntryInTx', async () => {
+    const service = createService();
+
+    await service.cancel('req-1', 'manager-42');
+
+    expect(mockBalanceAuditService.recordEntryInTx).toHaveBeenCalledWith(mockTx, {
+      balanceId: 'balance-1',
+      delta: 5,
+      reason: 'CANCELLATION_RESTORE',
+      requestId: 'req-1',
+      actorId: 'manager-42',
+    });
+  });
+
+  it('throws ConflictException when HCM returns NOT_FOUND and does not start a transaction', async () => {
+    mockHcmClient.cancelTimeOff.mockResolvedValue(
+      Failure.create({ code: 'NOT_FOUND', message: 'missing remote request', statusCode: 404 }),
+    );
+    const service = createService();
+
+    await expect(service.cancel('req-1')).rejects.toThrow(
+      new ConflictException('Remote HCM request hcm-req-1 was not found'),
+    );
+    expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('throws ServiceUnavailableException when HCM returns UNKNOWN and does not start a transaction', async () => {
+    mockHcmClient.cancelTimeOff.mockResolvedValue(
+      Failure.create({ code: 'UNKNOWN', message: 'network error', statusCode: 500 }),
+    );
+    const service = createService();
+
+    await expect(service.cancel('req-1')).rejects.toThrow(
+      new ServiceUnavailableException('HCM service is unavailable'),
+    );
+    expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+  });
+});
+
 describe('TimeOffRequestService — read', () => {
   const mockRequest = {
     id: 'req-1',

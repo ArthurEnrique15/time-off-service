@@ -43,6 +43,9 @@
 - F9 HCM sync on approval spec: [f9-hcm-sync-on-approval-spec.md](./specs/f9-hcm-sync-on-approval-spec.md)
 - F9 HCM sync on approval plan: [f9-hcm-sync-on-approval-plan.md](./feature-plans/f9-hcm-sync-on-approval-plan.md)
 - F9 HCM sync on approval agent plan: [2026-04-10-f9-hcm-sync-on-approval-agent-plan.md](./agent-plans/2026-04-10-f9-hcm-sync-on-approval-agent-plan.md)
+- F10 time-off request cancellation spec: [f10-time-off-request-cancellation-spec.md](./specs/f10-time-off-request-cancellation-spec.md)
+- F10 time-off request cancellation plan: [f10-time-off-request-cancellation-plan.md](./feature-plans/f10-time-off-request-cancellation-plan.md)
+- F10 time-off request cancellation agent plan: [2026-04-10-f10-time-off-request-cancellation-agent-plan.md](./agent-plans/2026-04-10-f10-time-off-request-cancellation-agent-plan.md)
 
 ## F7 Design Decisions
 
@@ -87,6 +90,20 @@ Resolved during F9 planning. These are authoritative for approval-time HCM sync 
 | Operational HCM failure | Keep request `PENDING` and keep reservation | Retryable outage path preserves intent |
 | `hcmRequestId` persistence | Set only after approval sync succeeds | Prevents storing external IDs for failed approvals |
 | Audit strategy | Add `HCM_SYNC` with `delta: 0` | Separates sync outcomes from balance movements |
+
+## F10 Design Decisions
+
+Resolved during F10 planning. These are authoritative for the cancellation
+feature and downstream consumers.
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Cancellation flow | Remote-first | HCM is authoritative for cancellation; local state should not change first |
+| Eligible status | `APPROVED` only | Keeps cancellation limited to finalized, approved requests |
+| Missing `hcmRequestId` | 409 Conflict | Approved request without a remote ID indicates state mismatch |
+| Request body | Optional `actorId` string | Reuses the F8 audit attribution pattern |
+| HCM `NOT_FOUND` mapping | 409 Conflict with no local mutation | Signals disagreement between local and HCM state |
+| HCM `UNKNOWN` mapping | 503 Service Unavailable with no local mutation | Downstream failure should not change local records |
 
 ## Pending Product Definitions
 - Canonical terminology for balances, requests, adjustments, and sync events
