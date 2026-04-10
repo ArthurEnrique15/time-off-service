@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BatchSyncService } from '@core/services/batch-sync.service';
 
 import { SyncController } from '@http/controllers/sync.controller';
-import { BatchSyncRequestDto } from '@http/dto/batch-sync.dto';
+import { BatchSyncRequestDto } from '@http/dtos/batch-sync.dto';
 
 describe('SyncController', () => {
   let controller: SyncController;
