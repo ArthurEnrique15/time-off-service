@@ -62,6 +62,14 @@ export const startMockHcmServer = async (options: MockHcmServerOptions = {}) => 
       return;
     }
 
+    // GET /balances — bulk export (must be before the /:eid/:lid regex handler)
+    if (method === 'GET' && url === '/balances') {
+      const balances = Array.from(balanceStore.values());
+      json(response, 200, { balances });
+
+      return;
+    }
+
     // GET /balances/:employeeId/:locationId
     const balanceMatch = url.match(/^\/balances\/([^/]+)\/([^/]+)$/);
 
