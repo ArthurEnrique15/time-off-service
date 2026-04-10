@@ -15,6 +15,8 @@ const config = {
     'src/shared/core/either/either.ts',
     'src/shared/core/custom-http/custom-http.service.ts',
     'src/shared/providers/hcm/hcm.client.ts',
+    'src/core/services/batch-sync.service.ts',
+    'src/http/controllers/sync.controller.ts',
   ],
   thresholds: { high: 100, low: 80, break: 80 },
 };

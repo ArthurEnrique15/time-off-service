@@ -7,6 +7,12 @@ import { InsufficientBalanceError } from '@shared/errors/insufficient-balance.er
 
 type TxClient = Parameters<Parameters<PrismaService['$transaction']>[0]>[0];
 
+export type UpsertBalanceResult = {
+  balance: Balance;
+  previousAvailableDays: number;
+  wasCreated: boolean;
+};
+
 @Injectable()
 export class BalanceService {
   constructor(private readonly prismaService: PrismaService) {}
@@ -99,6 +105,29 @@ export class BalanceService {
           availableDays: newAvailable,
         },
       });
+    });
+  }
+
+  async upsertBalance(employeeId: string, locationId: string, availableDays: number): Promise<UpsertBalanceResult> {
+    return this.prismaService.$transaction(async (tx) => {
+      const existing = await tx.balance.findUnique({
+        where: { employeeId_locationId: { employeeId, locationId } },
+      });
+
+      if (existing) {
+        const balance = await tx.balance.update({
+          where: { employeeId_locationId: { employeeId, locationId } },
+          data: { availableDays },
+        });
+
+        return { balance, previousAvailableDays: existing.availableDays, wasCreated: false };
+      }
+
+      const balance = await tx.balance.create({
+        data: { employeeId, locationId, availableDays },
+      });
+
+      return { balance, previousAvailableDays: 0, wasCreated: true };
     });
   }
 

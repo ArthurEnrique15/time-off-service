@@ -13,6 +13,7 @@ const config: Config = {
     '<rootDir>/src/**/*.ts',
     '!<rootDir>/src/**/*.module.ts',
     '!<rootDir>/src/**/*.types.ts',
+    '!<rootDir>/src/**/*.dto.ts',
   ],
   coveragePathIgnorePatterns: ['node_modules', 'dist'],
   coverageReporters: ['text-summary', 'lcov', 'json-summary'],
