@@ -295,8 +295,8 @@ describe('TimeOffRequestService — approve', () => {
     id: 'req-1',
     employeeId: 'emp-1',
     locationId: 'loc-1',
-    startDate: new Date('2025-06-01'),
-    endDate: new Date('2025-06-05'),
+    startDate: new Date(2025, 5, 1),
+    endDate: new Date(2025, 5, 5),
     status: 'PENDING',
     hcmRequestId: null,
     createdAt: new Date(),
@@ -517,12 +517,71 @@ describe('TimeOffRequestService — approve', () => {
       data: { status: 'REJECTED', hcmRequestId: null },
     });
     expect(mockBalanceService.releaseReservationInTx).toHaveBeenCalledWith(mockTx, 'emp-1', 'loc-1', 5);
+    expect(mockBalanceAuditService.recordEntryInTx).toHaveBeenNthCalledWith(1, mockTx, {
+      balanceId: 'balance-1',
+      delta: 5,
+      reason: 'RESERVATION_RELEASE',
+      requestId: 'req-1',
+      actorId: undefined,
+    });
     expect(mockBalanceAuditService.recordEntryInTx).toHaveBeenNthCalledWith(2, mockTx, {
       balanceId: 'balance-1',
       delta: 0,
       reason: 'HCM_SYNC',
       requestId: 'req-1',
       actorId: undefined,
+      reference: 'operation=approve outcome=failure code=INVALID_DIMENSIONS',
+    });
+  });
+
+  it('forwards actorId to both rejection audit entries when HCM returns INSUFFICIENT_BALANCE', async () => {
+    mockHcmClient.submitTimeOff.mockResolvedValue(
+      Failure.create({ code: 'INSUFFICIENT_BALANCE', message: 'not enough', statusCode: 400 }),
+    );
+    mockTx.timeOffRequest.update.mockResolvedValue(rejectedRequest);
+    const service = createService();
+
+    await expect(service.approve('req-1', 'manager-42')).rejects.toThrow(BadRequestException);
+
+    expect(mockBalanceAuditService.recordEntryInTx).toHaveBeenNthCalledWith(1, mockTx, {
+      balanceId: 'balance-1',
+      delta: 5,
+      reason: 'RESERVATION_RELEASE',
+      requestId: 'req-1',
+      actorId: 'manager-42',
+    });
+    expect(mockBalanceAuditService.recordEntryInTx).toHaveBeenNthCalledWith(2, mockTx, {
+      balanceId: 'balance-1',
+      delta: 0,
+      reason: 'HCM_SYNC',
+      requestId: 'req-1',
+      actorId: 'manager-42',
+      reference: 'operation=approve outcome=failure code=INSUFFICIENT_BALANCE',
+    });
+  });
+
+  it('forwards actorId to both rejection audit entries when HCM returns INVALID_DIMENSIONS', async () => {
+    mockHcmClient.submitTimeOff.mockResolvedValue(
+      Failure.create({ code: 'INVALID_DIMENSIONS', message: 'bad dims', statusCode: 400 }),
+    );
+    mockTx.timeOffRequest.update.mockResolvedValue(rejectedRequest);
+    const service = createService();
+
+    await expect(service.approve('req-1', 'manager-42')).rejects.toThrow(UnprocessableEntityException);
+
+    expect(mockBalanceAuditService.recordEntryInTx).toHaveBeenNthCalledWith(1, mockTx, {
+      balanceId: 'balance-1',
+      delta: 5,
+      reason: 'RESERVATION_RELEASE',
+      requestId: 'req-1',
+      actorId: 'manager-42',
+    });
+    expect(mockBalanceAuditService.recordEntryInTx).toHaveBeenNthCalledWith(2, mockTx, {
+      balanceId: 'balance-1',
+      delta: 0,
+      reason: 'HCM_SYNC',
+      requestId: 'req-1',
+      actorId: 'manager-42',
       reference: 'operation=approve outcome=failure code=INVALID_DIMENSIONS',
     });
   });
@@ -595,12 +654,16 @@ describe('TimeOffRequestService — reject', () => {
     recordEntryInTx: jest.fn(),
   };
 
+  const mockHcmClient = {
+    submitTimeOff: jest.fn(),
+  };
+
   const createService = () =>
     new TimeOffRequestService(
       mockPrismaService as any,
       mockBalanceService as any,
       mockBalanceAuditService as any,
-      {} as any,
+      mockHcmClient as any,
     );
 
   beforeEach(() => {
@@ -659,6 +722,7 @@ describe('TimeOffRequestService — reject', () => {
       actorId: undefined,
     });
     expect(result).toEqual(rejectedRequest);
+    expect(mockHcmClient.submitTimeOff).not.toHaveBeenCalled();
   });
 
   it('forwards actorId to recordEntryInTx', async () => {

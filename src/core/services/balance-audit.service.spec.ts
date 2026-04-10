@@ -287,6 +287,25 @@ describe('BalanceAuditService', () => {
       expect(countMock).toHaveBeenCalledWith({ where: expectedWhere });
     });
 
+    it('accepts HCM_SYNC as a valid reason filter in getHistory', async () => {
+      const { service, prismaService } = createService();
+      const findUniqueMock = prismaService.balance.findUnique as jest.Mock;
+      findUniqueMock.mockResolvedValue({ id: 'balance-1' });
+
+      const findManyMock = prismaService.balanceAuditEntry.findMany as jest.Mock;
+      findManyMock.mockResolvedValue([]);
+
+      const countMock = prismaService.balanceAuditEntry.count as jest.Mock;
+      countMock.mockResolvedValue(0);
+
+      await service.getHistory('emp-1', 'loc-1', { reason: 'HCM_SYNC' as any });
+
+      const expectedWhere = { balanceId: 'balance-1', reason: 'HCM_SYNC' };
+
+      expect(findManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: expectedWhere }));
+      expect(countMock).toHaveBeenCalledWith({ where: expectedWhere });
+    });
+
     it('paginates with custom page and limit', async () => {
       const { service, prismaService } = createService();
       const findUniqueMock = prismaService.balance.findUnique as jest.Mock;

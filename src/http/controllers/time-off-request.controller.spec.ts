@@ -1,4 +1,10 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+  ServiceUnavailableException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
 import type { PaginatedRequestList } from '@core/services/time-off-request.service';
@@ -158,6 +164,28 @@ describe('TimeOffRequestController', () => {
       mockTimeOffRequestService.approve.mockRejectedValue(new ConflictException('Cannot approve a APPROVED request'));
 
       await expect(controller.approve('req-1', { actorId: 'manager-1' })).rejects.toThrow(ConflictException);
+    });
+
+    it('propagates BadRequestException (400) from service', async () => {
+      mockTimeOffRequestService.approve.mockRejectedValue(new BadRequestException('Insufficient balance in HCM'));
+
+      await expect(controller.approve('req-1', { actorId: 'manager-1' })).rejects.toThrow(BadRequestException);
+    });
+
+    it('propagates UnprocessableEntityException (422) from service', async () => {
+      mockTimeOffRequestService.approve.mockRejectedValue(
+        new UnprocessableEntityException('Invalid dimensions in HCM'),
+      );
+
+      await expect(controller.approve('req-1', { actorId: 'manager-1' })).rejects.toThrow(UnprocessableEntityException);
+    });
+
+    it('propagates ServiceUnavailableException (503) from service', async () => {
+      mockTimeOffRequestService.approve.mockRejectedValue(
+        new ServiceUnavailableException('HCM service is unavailable'),
+      );
+
+      await expect(controller.approve('req-1', { actorId: 'manager-1' })).rejects.toThrow(ServiceUnavailableException);
     });
   });
 

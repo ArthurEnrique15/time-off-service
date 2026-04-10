@@ -7,7 +7,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type { TimeOffRequest } from '@prisma/client';
-import { differenceInCalendarDays, isAfter, parseISO } from 'date-fns';
+import { differenceInCalendarDays, format, isAfter, parseISO } from 'date-fns';
 
 import { PrismaService } from '@app-prisma/prisma.service';
 
@@ -331,6 +331,6 @@ export class TimeOffRequestService {
   }
 
   private toHcmDate(date: Date): string {
-    return date.toISOString().slice(0, 10);
+    return format(date, 'yyyy-MM-dd');
   }
 }

@@ -634,11 +634,16 @@ describe('Time-off request integration', () => {
         const balance = await prisma.balance.findUnique({
           where: { employeeId_locationId: { employeeId: EMPLOYEE_ID, locationId: 'loc-unknown-in-hcm' } },
         });
+        const auditEntries = await prisma.balanceAuditEntry.findMany({
+          where: { balanceId: balance!.id },
+          orderBy: { createdAt: 'asc' },
+        });
 
         expect(record!.status).toBe('REJECTED');
         expect(record!.hcmRequestId).toBeNull();
         expect(balance!.availableDays).toBe(20);
         expect(balance!.reservedDays).toBe(0);
+        expect(auditEntries.map((e) => e.reason)).toEqual(['RESERVATION', 'RESERVATION_RELEASE', 'HCM_SYNC']);
       });
     });
 
