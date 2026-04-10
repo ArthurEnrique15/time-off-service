@@ -1,0 +1,15 @@
+node_modules
+dist
+.git
+.worktrees
+coverage
+reports
+.stryker-tmp
+data
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+.env
+.env.*
+!.env.example

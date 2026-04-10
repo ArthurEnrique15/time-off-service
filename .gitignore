@@ -13,3 +13,4 @@ reports/
 *.db
 *.db-journal
 .github/hooks/
+data/

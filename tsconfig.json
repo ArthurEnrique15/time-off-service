@@ -25,7 +25,6 @@
       "@module/*": ["src/module/*"],
       "@shared/*": ["src/shared/*"]
     },
-    "types": ["jest"],
-    "ignoreDeprecations": "6.0"
+    "types": ["jest"]
   }
 }
