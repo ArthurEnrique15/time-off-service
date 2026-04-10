@@ -12,3 +12,4 @@ reports/
 *.sqlite-journal
 *.db
 *.db-journal
+.github/hooks/
