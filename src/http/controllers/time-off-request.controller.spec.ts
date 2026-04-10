@@ -1,19 +1,24 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
 
-import type { TimeOffRequestService, PaginatedRequestList } from '@core/services/time-off-request.service';
-
+import type { PaginatedRequestList } from '@core/services/time-off-request.service';
+import { TimeOffRequestService } from '@core/services/time-off-request.service';
 import { TimeOffRequestController } from '@http/controllers/time-off-request.controller';
+import type { CreateTimeOffRequestDto } from '@http/dtos/create-time-off-request.dto';
 
 describe('TimeOffRequestController', () => {
+  let controller: TimeOffRequestController;
+
   const mockRequest = {
     id: 'req-1',
     employeeId: 'emp-1',
     locationId: 'loc-1',
-    startDate: new Date('2026-06-01'),
-    endDate: new Date('2026-06-05'),
+    startDate: new Date('2025-06-01'),
+    endDate: new Date('2025-06-05'),
     status: 'PENDING',
-    createdAt: new Date('2026-05-01T10:00:00Z'),
-    updatedAt: new Date('2026-05-01T10:00:00Z'),
+    hcmRequestId: 'hcm-req-1',
+    createdAt: new Date(),
+    updatedAt: new Date(),
   };
 
   const mockPaginatedResponse: PaginatedRequestList = {
@@ -21,30 +26,52 @@ describe('TimeOffRequestController', () => {
     pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
   };
 
-  const createController = () => {
-    const timeOffRequestService = {
-      findById: jest.fn().mockResolvedValue(mockRequest),
-      findAllByEmployee: jest.fn().mockResolvedValue(mockPaginatedResponse),
-    } as unknown as TimeOffRequestService;
-
-    const controller = new TimeOffRequestController(timeOffRequestService);
-
-    return { controller, timeOffRequestService };
+  const mockTimeOffRequestService = {
+    create: jest.fn(),
+    findById: jest.fn().mockResolvedValue(mockRequest),
+    findAllByEmployee: jest.fn().mockResolvedValue(mockPaginatedResponse),
   };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockTimeOffRequestService.findById.mockResolvedValue(mockRequest);
+    mockTimeOffRequestService.findAllByEmployee.mockResolvedValue(mockPaginatedResponse);
+
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [TimeOffRequestController],
+      providers: [{ provide: TimeOffRequestService, useValue: mockTimeOffRequestService }],
+    }).compile();
+
+    controller = module.get<TimeOffRequestController>(TimeOffRequestController);
+  });
+
+  describe('create', () => {
+    it('delegates to TimeOffRequestService.create and returns the result', async () => {
+      const dto: CreateTimeOffRequestDto = {
+        employeeId: 'emp-1',
+        locationId: 'loc-1',
+        startDate: '2025-06-01',
+        endDate: '2025-06-05',
+      };
+      mockTimeOffRequestService.create.mockResolvedValue(mockRequest);
+
+      const result = await controller.create(dto);
+
+      expect(result).toEqual(mockRequest);
+      expect(mockTimeOffRequestService.create).toHaveBeenCalledWith(dto);
+    });
+  });
 
   describe('findOne', () => {
     it('returns the request when found', async () => {
-      const { controller, timeOffRequestService } = createController();
-
       const result = await controller.findOne('req-1');
 
       expect(result).toEqual(mockRequest);
-      expect(timeOffRequestService.findById).toHaveBeenCalledWith('req-1');
+      expect(mockTimeOffRequestService.findById).toHaveBeenCalledWith('req-1');
     });
 
     it('throws NotFoundException when request not found', async () => {
-      const { controller, timeOffRequestService } = createController();
-      (timeOffRequestService.findById as jest.Mock).mockResolvedValue(null);
+      mockTimeOffRequestService.findById.mockResolvedValue(null);
 
       await expect(controller.findOne('nonexistent')).rejects.toThrow(NotFoundException);
     });
@@ -52,12 +79,10 @@ describe('TimeOffRequestController', () => {
 
   describe('findAll', () => {
     it('delegates to service with parsed params', async () => {
-      const { controller, timeOffRequestService } = createController();
-
       const result = await controller.findAll('emp-1', 'PENDING', '2', '10');
 
       expect(result).toEqual(mockPaginatedResponse);
-      expect(timeOffRequestService.findAllByEmployee).toHaveBeenCalledWith('emp-1', {
+      expect(mockTimeOffRequestService.findAllByEmployee).toHaveBeenCalledWith('emp-1', {
         page: 2,
         limit: 10,
         status: 'PENDING',
@@ -65,11 +90,9 @@ describe('TimeOffRequestController', () => {
     });
 
     it('uses default page=1 and limit=20 when not provided', async () => {
-      const { controller, timeOffRequestService } = createController();
-
       await controller.findAll('emp-1', undefined, undefined, undefined);
 
-      expect(timeOffRequestService.findAllByEmployee).toHaveBeenCalledWith('emp-1', {
+      expect(mockTimeOffRequestService.findAllByEmployee).toHaveBeenCalledWith('emp-1', {
         page: 1,
         limit: 20,
         status: undefined,
@@ -77,45 +100,35 @@ describe('TimeOffRequestController', () => {
     });
 
     it('throws BadRequestException when employeeId is missing', async () => {
-      const { controller } = createController();
-
       await expect(controller.findAll(undefined as any, undefined, undefined, undefined)).rejects.toThrow(
         BadRequestException,
       );
     });
 
     it('throws BadRequestException for invalid status', async () => {
-      const { controller } = createController();
-
       await expect(controller.findAll('emp-1', 'INVALID', undefined, undefined)).rejects.toThrow(
         BadRequestException,
       );
     });
 
     it('passes undefined status when not provided (returns all)', async () => {
-      const { controller, timeOffRequestService } = createController();
-
       await controller.findAll('emp-1', undefined, undefined, undefined);
 
-      const call = (timeOffRequestService.findAllByEmployee as jest.Mock).mock.calls[0][1];
+      const call = (mockTimeOffRequestService.findAllByEmployee as jest.Mock).mock.calls[0][1];
       expect(call.status).toBeUndefined();
     });
 
     it('uses default page when page is NaN', async () => {
-      const { controller, timeOffRequestService } = createController();
-
       await controller.findAll('emp-1', undefined, 'abc', undefined);
 
-      const call = (timeOffRequestService.findAllByEmployee as jest.Mock).mock.calls[0][1];
+      const call = (mockTimeOffRequestService.findAllByEmployee as jest.Mock).mock.calls[0][1];
       expect(call.page).toBe(1);
     });
 
     it('uses default limit when limit is NaN', async () => {
-      const { controller, timeOffRequestService } = createController();
-
       await controller.findAll('emp-1', undefined, undefined, 'xyz');
 
-      const call = (timeOffRequestService.findAllByEmployee as jest.Mock).mock.calls[0][1];
+      const call = (mockTimeOffRequestService.findAllByEmployee as jest.Mock).mock.calls[0][1];
       expect(call.limit).toBe(20);
     });
   });

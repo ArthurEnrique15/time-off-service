@@ -102,6 +102,70 @@ describe('BalanceAuditService', () => {
     });
   });
 
+  describe('recordEntryInTx', () => {
+    it('creates an audit entry via the provided tx client', async () => {
+      const { service } = createService();
+      const mockTx = {
+        balanceAuditEntry: { create: jest.fn().mockResolvedValue(mockAuditEntry) },
+      } as any;
+
+      const result = await service.recordEntryInTx(mockTx, {
+        balanceId: 'balance-1',
+        delta: -3,
+        reason: 'RESERVATION',
+        requestId: 'request-1',
+        reference: 'ref-1',
+        actorId: 'actor-1',
+      });
+
+      expect(result).toEqual(mockAuditEntry);
+      expect(mockTx.balanceAuditEntry.create).toHaveBeenCalledWith({
+        data: {
+          balanceId: 'balance-1',
+          delta: -3,
+          reason: 'RESERVATION',
+          requestId: 'request-1',
+          reference: 'ref-1',
+          actorId: 'actor-1',
+        },
+      });
+    });
+
+    it('creates an audit entry with optional fields omitted via tx', async () => {
+      const { service } = createService();
+      const entryWithoutOptionals = { ...mockAuditEntry, requestId: null, actorId: null };
+      const mockTx = {
+        balanceAuditEntry: { create: jest.fn().mockResolvedValue(entryWithoutOptionals) },
+      } as any;
+
+      const result = await service.recordEntryInTx(mockTx, {
+        balanceId: 'balance-1',
+        delta: 5,
+        reason: 'BATCH_SYNC',
+      });
+
+      expect(result).toEqual(entryWithoutOptionals);
+      const callData = (mockTx.balanceAuditEntry.create as jest.Mock).mock.calls[0][0].data;
+      expect(callData).toEqual({ balanceId: 'balance-1', delta: 5, reason: 'BATCH_SYNC' });
+      expect(callData).not.toHaveProperty('requestId');
+      expect(callData).not.toHaveProperty('reference');
+      expect(callData).not.toHaveProperty('actorId');
+    });
+
+    it('rejects an invalid reason value via tx', async () => {
+      const { service } = createService();
+      const mockTx = { balanceAuditEntry: { create: jest.fn() } } as any;
+
+      await expect(
+        service.recordEntryInTx(mockTx, {
+          balanceId: 'balance-1',
+          delta: -1,
+          reason: 'INVALID_REASON' as any,
+        }),
+      ).rejects.toThrow('Invalid audit reason: INVALID_REASON');
+    });
+  });
+
   describe('getHistory', () => {
     it('throws NotFoundException when balance not found', async () => {
       const { service, prismaService } = createService();

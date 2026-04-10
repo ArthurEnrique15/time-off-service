@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, NotFoundException, Param, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, HttpStatus, NotFoundException, Param, Post, Query } from '@nestjs/common';
 import type { TimeOffRequest } from '@prisma/client';
 
 import {
@@ -7,10 +7,17 @@ import {
   type PaginatedRequestList,
   type TimeOffRequestStatus,
 } from '@core/services/time-off-request.service';
+import { CreateTimeOffRequestDto } from '@http/dtos/create-time-off-request.dto';
 
 @Controller('time-off-requests')
 export class TimeOffRequestController {
   constructor(private readonly timeOffRequestService: TimeOffRequestService) {}
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  create(@Body() dto: CreateTimeOffRequestDto): Promise<TimeOffRequest> {
+    return this.timeOffRequestService.create(dto);
+  }
 
   @Get()
   async findAll(

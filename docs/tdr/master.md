@@ -32,6 +32,8 @@
 - F3 balance audit trail plan: [f3-balance-audit-trail-plan.md](./feature-plans/f3-balance-audit-trail-plan.md)
 - F4 HCM client spec: [f4-hcm-client-spec.md](./specs/f4-hcm-client-spec.md)
 - F4 HCM client plan: [f4-hcm-client-plan.md](./feature-plans/f4-hcm-client-plan.md)
+- F5 time-off request create spec: [f5-time-off-request-create-spec.md](./specs/f5-time-off-request-create-spec.md)
+- F5 time-off request create plan: [f5-time-off-request-create-plan.md](./feature-plans/f5-time-off-request-create-plan.md)
 - F6 time-off request read/list spec: [f6-time-off-request-read-list-spec.md](./specs/f6-time-off-request-read-list-spec.md)
 - F6 time-off request read/list plan: [f6-time-off-request-read-list-plan.md](./feature-plans/f6-time-off-request-read-list-plan.md)
 - F7 HCM batch sync spec: [f7-hcm-batch-sync-spec.md](./specs/f7-hcm-batch-sync-spec.md)

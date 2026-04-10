@@ -1,5 +1,6 @@
-import { Module } from '@nestjs/common';
+import { Module, ValidationPipe } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_PIPE } from '@nestjs/core';
 
 import { TimeOffModule } from '@module/time-off.module';
 
@@ -17,6 +18,12 @@ import { EnvConfigModule, envValidationSchema, getEnvConfig } from '@shared/conf
     }),
     EnvConfigModule,
     TimeOffModule,
+  ],
+  providers: [
+    {
+      provide: APP_PIPE,
+      useValue: new ValidationPipe({ whitelist: true, forbidNonWhitelisted: false, transform: true }),
+    },
   ],
 })
 export class AppModule {}
