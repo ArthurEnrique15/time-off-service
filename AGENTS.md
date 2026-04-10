@@ -2,6 +2,12 @@
 
 These instructions are mandatory for every agent working in this repository.
 
+## Worktree Rule
+- **Never make code or documentation changes directly in the main workspace.**
+- Every feature branch must be developed inside a dedicated git worktree under `.worktrees/<branch-name>/`.
+- Create the worktree before writing any files: `git worktree add .worktrees/<branch-name> -b <branch-name>`.
+- All file reads, edits, and test runs must target the worktree path, not the main workspace path.
+
 ## Delivery Flow
 - Always use Superpowers skills before taking action.
 - Always use spec-driven development combined with TDD.
@@ -33,10 +39,11 @@ These instructions are mandatory for every agent working in this repository.
 
 ## Documentation Rules
 - Keep the master TDR current.
-- Save feature specs under `docs/tdr/specs/`.
+- Save feature specs under `docs/tdr/specs/`. **Do not create any other specs directories.**
 - Save feature implementation plans under `docs/tdr/feature-plans/`.
 - Save agent work plans under `docs/tdr/agent-plans/`.
 - Link new specs and plans from `docs/tdr/master.md`.
+- Never create documentation outside the `docs/tdr/` tree unless explicitly instructed.
 
 ## Code Structure
 - This is a small service. Do not introduce `src/modules/`.
