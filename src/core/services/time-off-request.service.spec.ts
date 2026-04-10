@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   NotFoundException,
+  ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -39,7 +40,7 @@ describe('TimeOffRequestService', () => {
     startDate: new Date('2025-06-01'),
     endDate: new Date('2025-06-05'),
     status: 'PENDING',
-    hcmRequestId: 'hcm-req-1',
+    hcmRequestId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -116,7 +117,6 @@ describe('TimeOffRequestService', () => {
   describe('create — happy path', () => {
     it('returns the created TimeOffRequest', async () => {
       mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(mockBalance);
-      mockHcmClient.submitTimeOff.mockResolvedValue(Success.create({ id: 'hcm-req-1', status: 'APPROVED' }));
 
       const result = await service.create(validDto);
 
@@ -125,7 +125,6 @@ describe('TimeOffRequestService', () => {
 
     it('calls BalanceAuditService.recordEntryInTx with RESERVATION reason', async () => {
       mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(mockBalance);
-      mockHcmClient.submitTimeOff.mockResolvedValue(Success.create({ id: 'hcm-req-1', status: 'APPROVED' }));
 
       await service.create(validDto);
 
@@ -140,23 +139,16 @@ describe('TimeOffRequestService', () => {
       );
     });
 
-    it('calls HcmClient.submitTimeOff with the correct request data', async () => {
+    it('does not call HcmClient.submitTimeOff during request creation', async () => {
       mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(mockBalance);
-      mockHcmClient.submitTimeOff.mockResolvedValue(Success.create({ id: 'hcm-req-1', status: 'APPROVED' }));
 
       await service.create(validDto);
 
-      expect(mockHcmClient.submitTimeOff).toHaveBeenCalledWith({
-        employeeId: 'emp-1',
-        locationId: 'loc-1',
-        startDate: '2025-06-01',
-        endDate: '2025-06-05',
-      });
+      expect(mockHcmClient.submitTimeOff).not.toHaveBeenCalled();
     });
 
-    it('stores hcmRequestId from HCM response on the created request', async () => {
+    it('leaves hcmRequestId unset on the created request', async () => {
       mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(mockBalance);
-      mockHcmClient.submitTimeOff.mockResolvedValue(Success.create({ id: 'hcm-req-99', status: 'APPROVED' }));
 
       mockPrismaService.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => {
         const tx = {
@@ -173,7 +165,7 @@ describe('TimeOffRequestService', () => {
 
       const result = await service.create(validDto);
 
-      expect(result.hcmRequestId).toBe('hcm-req-99');
+      expect(result.hcmRequestId).toBeNull();
     });
   });
 
@@ -210,7 +202,6 @@ describe('TimeOffRequestService', () => {
         ...mockBalance,
         availableDays: 5,
       });
-      mockHcmClient.submitTimeOff.mockResolvedValue(Success.create({ id: 'hcm-req-1', status: 'APPROVED' }));
 
       await expect(service.create(validDto)).resolves.toBeDefined();
     });
@@ -219,7 +210,6 @@ describe('TimeOffRequestService', () => {
   describe('create — in-transaction safety checks', () => {
     it('throws NotFoundException when balance disappears inside the transaction', async () => {
       mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(mockBalance);
-      mockHcmClient.submitTimeOff.mockResolvedValue(Success.create({ id: 'hcm-req-1', status: 'APPROVED' }));
       mockBalanceService.reserveInTx.mockRejectedValueOnce(
         new NotFoundException('Balance not found for employee emp-1 at location loc-1'),
       );
@@ -229,7 +219,6 @@ describe('TimeOffRequestService', () => {
 
     it('throws InsufficientBalanceError when balance becomes insufficient inside the transaction', async () => {
       mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(mockBalance);
-      mockHcmClient.submitTimeOff.mockResolvedValue(Success.create({ id: 'hcm-req-1', status: 'APPROVED' }));
       mockBalanceService.reserveInTx.mockRejectedValueOnce(new InsufficientBalanceError('emp-1', 'loc-1', 5, 1));
 
       await expect(service.create(validDto)).rejects.toThrow(InsufficientBalanceError);
@@ -237,69 +226,14 @@ describe('TimeOffRequestService', () => {
 
     it('does not throw when in-transaction balance exactly equals days requested', async () => {
       mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(mockBalance);
-      mockHcmClient.submitTimeOff.mockResolvedValue(Success.create({ id: 'hcm-req-1', status: 'APPROVED' }));
 
       await expect(service.create(validDto)).resolves.toBeDefined();
-    });
-  });
-
-  describe('create — HCM error mapping', () => {
-    it('throws BadRequestException when HCM returns INSUFFICIENT_BALANCE', async () => {
-      mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(mockBalance);
-      mockHcmClient.submitTimeOff.mockResolvedValue(
-        Failure.create({ code: 'INSUFFICIENT_BALANCE', message: 'not enough', statusCode: 400 }),
-      );
-
-      await expect(service.create(validDto)).rejects.toThrow(BadRequestException);
-      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
-    });
-
-    it('throws UnprocessableEntityException when HCM returns INVALID_DIMENSIONS', async () => {
-      mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(mockBalance);
-      mockHcmClient.submitTimeOff.mockResolvedValue(
-        Failure.create({ code: 'INVALID_DIMENSIONS', message: 'bad dims', statusCode: 400 }),
-      );
-
-      await expect(service.create(validDto)).rejects.toThrow(UnprocessableEntityException);
-      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
-    });
-
-    it('throws ServiceUnavailableException when HCM returns UNKNOWN', async () => {
-      mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(mockBalance);
-      mockHcmClient.submitTimeOff.mockResolvedValue(
-        Failure.create({ code: 'UNKNOWN', message: 'network error', statusCode: 500 }),
-      );
-
-      await expect(service.create(validDto)).rejects.toThrow('HCM service is unavailable');
-      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('create — HCM compensation', () => {
-    it('calls cancelTimeOff when the Prisma transaction fails after HCM submission succeeds', async () => {
-      mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(mockBalance);
-      mockHcmClient.submitTimeOff.mockResolvedValue(Success.create({ id: 'hcm-req-1', status: 'APPROVED' }));
-      mockPrismaService.$transaction.mockRejectedValueOnce(new Error('DB error'));
-
-      await expect(service.create(validDto)).rejects.toThrow('DB error');
-      expect(mockHcmClient.cancelTimeOff).toHaveBeenCalledWith('hcm-req-1');
-    });
-
-    it('does not call cancelTimeOff when HCM fails (before any transaction)', async () => {
-      mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(mockBalance);
-      mockHcmClient.submitTimeOff.mockResolvedValue(
-        Failure.create({ code: 'INSUFFICIENT_BALANCE', message: 'not enough', statusCode: 400 }),
-      );
-
-      await expect(service.create(validDto)).rejects.toThrow(BadRequestException);
-      expect(mockHcmClient.cancelTimeOff).not.toHaveBeenCalled();
     });
   });
 
   describe('create — Prisma call assertions', () => {
     it('calls reserveInTx and recordEntryInTx with correct args, and creates request with PENDING status', async () => {
       mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(mockBalance);
-      mockHcmClient.submitTimeOff.mockResolvedValue(Success.create({ id: 'hcm-req-1', status: 'APPROVED' }));
 
       let capturedTx: any;
       mockPrismaService.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => {
@@ -319,7 +253,7 @@ describe('TimeOffRequestService', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             status: 'PENDING',
-            hcmRequestId: 'hcm-req-1',
+            hcmRequestId: null,
           }),
         }),
       );
@@ -334,7 +268,6 @@ describe('TimeOffRequestService', () => {
 
     it('startDate and endDate are stored as Date objects (parseISO conversion)', async () => {
       mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(mockBalance);
-      mockHcmClient.submitTimeOff.mockResolvedValue(Success.create({ id: 'hcm-req-1', status: 'APPROVED' }));
 
       let capturedTx: any;
       mockPrismaService.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => {
@@ -365,14 +298,15 @@ describe('TimeOffRequestService — approve', () => {
     startDate: new Date('2025-06-01'),
     endDate: new Date('2025-06-05'),
     status: 'PENDING',
-    hcmRequestId: 'hcm-req-1',
+    hcmRequestId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
 
-  const approvedRequest = { ...mockRequest, status: 'APPROVED' };
+  const approvedRequest = { ...mockRequest, status: 'APPROVED', hcmRequestId: 'hcm-req-approval-1' };
+  const rejectedRequest = { ...mockRequest, status: 'REJECTED', hcmRequestId: null };
 
-  const mockBalance = {
+  const balanceBeforeApproval = {
     id: 'balance-1',
     employeeId: 'emp-1',
     locationId: 'loc-1',
@@ -380,6 +314,17 @@ describe('TimeOffRequestService — approve', () => {
     reservedDays: 5,
     createdAt: new Date(),
     updatedAt: new Date(),
+  };
+
+  const confirmedBalance = {
+    ...balanceBeforeApproval,
+    reservedDays: 0,
+  };
+
+  const releasedBalance = {
+    ...balanceBeforeApproval,
+    availableDays: 20,
+    reservedDays: 0,
   };
 
   const mockTx = {
@@ -396,11 +341,18 @@ describe('TimeOffRequestService — approve', () => {
   };
 
   const mockBalanceService = {
+    findByEmployeeAndLocation: jest.fn(),
     confirmDeductionInTx: jest.fn(),
+    releaseReservationInTx: jest.fn(),
   };
 
   const mockBalanceAuditService = {
     recordEntryInTx: jest.fn(),
+    recordEntry: jest.fn(),
+  };
+
+  const mockHcmClient = {
+    submitTimeOff: jest.fn(),
   };
 
   const createService = () =>
@@ -408,15 +360,19 @@ describe('TimeOffRequestService — approve', () => {
       mockPrismaService as any,
       mockBalanceService as any,
       mockBalanceAuditService as any,
-      {} as any,
+      mockHcmClient as any,
     );
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockPrismaService.timeOffRequest.findUnique.mockResolvedValue(mockRequest);
     mockTx.timeOffRequest.update.mockResolvedValue(approvedRequest);
-    mockBalanceService.confirmDeductionInTx.mockResolvedValue(mockBalance);
+    mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(balanceBeforeApproval);
+    mockBalanceService.confirmDeductionInTx.mockResolvedValue(confirmedBalance);
+    mockBalanceService.releaseReservationInTx.mockResolvedValue(releasedBalance);
     mockBalanceAuditService.recordEntryInTx.mockResolvedValue({});
+    mockBalanceAuditService.recordEntry.mockResolvedValue({});
+    mockHcmClient.submitTimeOff.mockResolvedValue(Success.create({ id: 'hcm-req-approval-1', status: 'APPROVED' }));
   });
 
   it('throws NotFoundException when request is not found', async () => {
@@ -449,37 +405,146 @@ describe('TimeOffRequestService — approve', () => {
     await expect(service.approve('req-1')).rejects.toThrow(new ConflictException('Cannot approve a CANCELLED request'));
   });
 
-  it('calls tx.timeOffRequest.update with APPROVED, calls confirmDeductionInTx, calls recordEntryInTx with APPROVAL_DEDUCTION and delta -days', async () => {
+  it('throws NotFoundException when the local balance no longer exists', async () => {
+    mockBalanceService.findByEmployeeAndLocation.mockResolvedValue(null);
+    const service = createService();
+
+    await expect(service.approve('req-1')).rejects.toThrow(
+      new NotFoundException('Balance not found for employee emp-1 at location loc-1'),
+    );
+    expect(mockHcmClient.submitTimeOff).not.toHaveBeenCalled();
+  });
+
+  it('submits the request to HCM and finalizes local approval on success', async () => {
     const service = createService();
 
     const result = await service.approve('req-1');
 
+    expect(mockHcmClient.submitTimeOff).toHaveBeenCalledWith({
+      employeeId: 'emp-1',
+      locationId: 'loc-1',
+      startDate: '2025-06-01',
+      endDate: '2025-06-05',
+    });
     expect(mockTx.timeOffRequest.update).toHaveBeenCalledWith({
       where: { id: 'req-1' },
-      data: { status: 'APPROVED' },
+      data: { status: 'APPROVED', hcmRequestId: 'hcm-req-approval-1' },
     });
     expect(mockBalanceService.confirmDeductionInTx).toHaveBeenCalledWith(mockTx, 'emp-1', 'loc-1', 5);
-    expect(mockBalanceAuditService.recordEntryInTx).toHaveBeenCalledWith(mockTx, {
+    expect(mockBalanceAuditService.recordEntryInTx).toHaveBeenNthCalledWith(1, mockTx, {
       balanceId: 'balance-1',
       delta: -5,
       reason: 'APPROVAL_DEDUCTION',
       requestId: 'req-1',
       actorId: undefined,
     });
+    expect(mockBalanceAuditService.recordEntryInTx).toHaveBeenNthCalledWith(2, mockTx, {
+      balanceId: 'balance-1',
+      delta: 0,
+      reason: 'HCM_SYNC',
+      requestId: 'req-1',
+      actorId: undefined,
+      reference: 'operation=approve outcome=success hcmRequestId=hcm-req-approval-1',
+    });
     expect(result).toEqual(approvedRequest);
   });
 
-  it('forwards actorId to recordEntryInTx', async () => {
+  it('forwards actorId to both approval audit entries', async () => {
     const service = createService();
 
     await service.approve('req-1', 'manager-42');
 
-    expect(mockBalanceAuditService.recordEntryInTx).toHaveBeenCalledWith(mockTx, {
+    expect(mockBalanceAuditService.recordEntryInTx).toHaveBeenNthCalledWith(1, mockTx, {
       balanceId: 'balance-1',
       delta: -5,
       reason: 'APPROVAL_DEDUCTION',
       requestId: 'req-1',
       actorId: 'manager-42',
+    });
+    expect(mockBalanceAuditService.recordEntryInTx).toHaveBeenNthCalledWith(2, mockTx, {
+      balanceId: 'balance-1',
+      delta: 0,
+      reason: 'HCM_SYNC',
+      requestId: 'req-1',
+      actorId: 'manager-42',
+      reference: 'operation=approve outcome=success hcmRequestId=hcm-req-approval-1',
+    });
+  });
+
+  it('rejects the request and releases the reservation when HCM returns INSUFFICIENT_BALANCE', async () => {
+    mockHcmClient.submitTimeOff.mockResolvedValue(
+      Failure.create({ code: 'INSUFFICIENT_BALANCE', message: 'not enough', statusCode: 400 }),
+    );
+    mockTx.timeOffRequest.update.mockResolvedValue(rejectedRequest);
+    const service = createService();
+
+    await expect(service.approve('req-1')).rejects.toThrow(BadRequestException);
+
+    expect(mockTx.timeOffRequest.update).toHaveBeenCalledWith({
+      where: { id: 'req-1' },
+      data: { status: 'REJECTED', hcmRequestId: null },
+    });
+    expect(mockBalanceService.releaseReservationInTx).toHaveBeenCalledWith(mockTx, 'emp-1', 'loc-1', 5);
+    expect(mockBalanceAuditService.recordEntryInTx).toHaveBeenNthCalledWith(1, mockTx, {
+      balanceId: 'balance-1',
+      delta: 5,
+      reason: 'RESERVATION_RELEASE',
+      requestId: 'req-1',
+      actorId: undefined,
+    });
+    expect(mockBalanceAuditService.recordEntryInTx).toHaveBeenNthCalledWith(2, mockTx, {
+      balanceId: 'balance-1',
+      delta: 0,
+      reason: 'HCM_SYNC',
+      requestId: 'req-1',
+      actorId: undefined,
+      reference: 'operation=approve outcome=failure code=INSUFFICIENT_BALANCE',
+    });
+    expect(mockBalanceService.confirmDeductionInTx).not.toHaveBeenCalled();
+  });
+
+  it('rejects the request and releases the reservation when HCM returns INVALID_DIMENSIONS', async () => {
+    mockHcmClient.submitTimeOff.mockResolvedValue(
+      Failure.create({ code: 'INVALID_DIMENSIONS', message: 'bad dims', statusCode: 400 }),
+    );
+    mockTx.timeOffRequest.update.mockResolvedValue(rejectedRequest);
+    const service = createService();
+
+    await expect(service.approve('req-1')).rejects.toThrow(UnprocessableEntityException);
+
+    expect(mockTx.timeOffRequest.update).toHaveBeenCalledWith({
+      where: { id: 'req-1' },
+      data: { status: 'REJECTED', hcmRequestId: null },
+    });
+    expect(mockBalanceService.releaseReservationInTx).toHaveBeenCalledWith(mockTx, 'emp-1', 'loc-1', 5);
+    expect(mockBalanceAuditService.recordEntryInTx).toHaveBeenNthCalledWith(2, mockTx, {
+      balanceId: 'balance-1',
+      delta: 0,
+      reason: 'HCM_SYNC',
+      requestId: 'req-1',
+      actorId: undefined,
+      reference: 'operation=approve outcome=failure code=INVALID_DIMENSIONS',
+    });
+  });
+
+  it('keeps the request pending when HCM returns UNKNOWN', async () => {
+    mockHcmClient.submitTimeOff.mockResolvedValue(
+      Failure.create({ code: 'UNKNOWN', message: 'network error', statusCode: 500 }),
+    );
+    const service = createService();
+
+    await expect(service.approve('req-1')).rejects.toThrow('HCM service is unavailable');
+
+    expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+    expect(mockBalanceService.confirmDeductionInTx).not.toHaveBeenCalled();
+    expect(mockBalanceService.releaseReservationInTx).not.toHaveBeenCalled();
+    expect(mockBalanceAuditService.recordEntry).toHaveBeenCalledWith({
+      balanceId: 'balance-1',
+      delta: 0,
+      reason: 'HCM_SYNC',
+      requestId: 'req-1',
+      actorId: undefined,
+      reference: 'operation=approve outcome=failure code=UNKNOWN',
     });
   });
 });
@@ -492,7 +557,7 @@ describe('TimeOffRequestService — reject', () => {
     startDate: new Date('2025-06-01'),
     endDate: new Date('2025-06-05'),
     status: 'PENDING',
-    hcmRequestId: 'hcm-req-1',
+    hcmRequestId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -632,7 +697,7 @@ describe('TimeOffRequestService — read', () => {
       },
     } as unknown as PrismaService;
 
-    const service = new TimeOffRequestService(prismaService);
+    const service = new TimeOffRequestService(prismaService, {} as any, {} as any, {} as any);
 
     return { service, prismaService };
   };

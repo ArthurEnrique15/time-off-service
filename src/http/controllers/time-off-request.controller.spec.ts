@@ -17,7 +17,7 @@ describe('TimeOffRequestController', () => {
     startDate: new Date('2025-06-01'),
     endDate: new Date('2025-06-05'),
     status: 'PENDING',
-    hcmRequestId: 'hcm-req-1',
+    hcmRequestId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -136,7 +136,7 @@ describe('TimeOffRequestController', () => {
 
   describe('approve', () => {
     it('delegates to service with id and actorId, returns result', async () => {
-      const approvedRequest = { ...mockRequest, status: 'APPROVED' };
+      const approvedRequest = { ...mockRequest, status: 'APPROVED', hcmRequestId: 'hcm-req-approval-1' };
       mockTimeOffRequestService.approve.mockResolvedValue(approvedRequest);
 
       const result = await controller.approve('req-1', { actorId: 'manager-1' });

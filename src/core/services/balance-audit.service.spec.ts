@@ -100,6 +100,38 @@ describe('BalanceAuditService', () => {
         }),
       ).rejects.toThrow('Invalid audit reason: INVALID_REASON');
     });
+
+    it('accepts HCM_SYNC as a valid audit reason', async () => {
+      const { service, prismaService } = createService();
+      const syncEntry = {
+        ...mockAuditEntry,
+        id: 'audit-sync-1',
+        delta: 0,
+        reason: 'HCM_SYNC',
+        reference: 'operation=approve outcome=success hcmRequestId=hcm-req-1',
+      };
+      const createMock = prismaService.balanceAuditEntry.create as jest.Mock;
+      createMock.mockResolvedValue(syncEntry);
+
+      const result = await service.recordEntry({
+        balanceId: 'balance-1',
+        delta: 0,
+        reason: 'HCM_SYNC' as any,
+        requestId: 'request-1',
+        reference: 'operation=approve outcome=success hcmRequestId=hcm-req-1',
+      });
+
+      expect(result).toEqual(syncEntry);
+      expect(createMock).toHaveBeenCalledWith({
+        data: {
+          balanceId: 'balance-1',
+          delta: 0,
+          reason: 'HCM_SYNC',
+          requestId: 'request-1',
+          reference: 'operation=approve outcome=success hcmRequestId=hcm-req-1',
+        },
+      });
+    });
   });
 
   describe('recordEntryInTx', () => {
@@ -364,6 +396,7 @@ describe('BalanceAuditService', () => {
       'APPROVAL_DEDUCTION',
       'CANCELLATION_RESTORE',
       'BATCH_SYNC',
+      'HCM_SYNC',
       'MANUAL_ADJUSTMENT',
     ]);
   });

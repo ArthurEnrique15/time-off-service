@@ -3,8 +3,9 @@
 ## Context
 
 Managers review PENDING time-off requests and either approve or reject them. On approval
-the reserved balance is confirmed (moved from reserved to consumed). On rejection the
-reservation is released (reserved days returned to available). Both actions are audit-logged.
+the service must first submit the request to HCM. On approval success the reserved
+balance is confirmed (moved from reserved to consumed). On rejection the reservation is
+released (reserved days returned to available). Both actions are audit-logged.
 
 This feature depends on:
 - F1 (Domain Models) — `TimeOffRequest`, `Balance`, `BalanceAuditEntry` Prisma models
@@ -16,17 +17,16 @@ This feature depends on:
 
 ### Approve
 
+> HCM-backed approval behavior is fully specified in F9. This F8 spec now documents the
+> endpoint shape and common guards only.
+
 - When `PATCH /time-off-requests/:id/approve` is called and the request does not exist,
   the system shall return a `404` response.
 - When `PATCH /time-off-requests/:id/approve` is called and the request status is not
   `PENDING`, the system shall return a `409` response.
-- When `PATCH /time-off-requests/:id/approve` is called on a `PENDING` request, the system
-  shall atomically (inside a single Prisma transaction):
-  - Update the `TimeOffRequest` status to `APPROVED`
-  - Call `BalanceService.confirmDeductionInTx()` (decrements `reservedDays`)
-  - Call `BalanceAuditService.recordEntryInTx()` with `reason: 'APPROVAL_DEDUCTION'`,
-    `delta: -daysRequested`, `balanceId`, `requestId`, and the forwarded `actorId` (if provided)
-- The system shall return a `200` response with the updated `TimeOffRequest` as JSON.
+- When `PATCH /time-off-requests/:id/approve` is called on a `PENDING` request, the
+  system shall follow the F9 approval-sync rules for HCM submission, local state
+  transition, and error mapping.
 
 ### Reject
 
@@ -54,14 +54,13 @@ This feature depends on:
 |---|---|
 | Request not found | 404 |
 | Request status is not PENDING | 409 |
-| Happy path (approve or reject) | 200 |
+| Happy path reject | 200 |
 
 ## Testing Requirements
 
 ### Unit Tests — `TimeOffRequestService`
 
-- Approve happy path: PENDING request found → status updated to APPROVED, `confirmDeductionInTx` called, `recordEntryInTx` called with `APPROVAL_DEDUCTION`.
-- Approve with `actorId`: `actorId` forwarded to `recordEntry`.
+- Approve behavior is covered by F9 tests.
 - Approve not found → `NotFoundException` thrown.
 - Approve non-PENDING → `ConflictException` thrown.
 - Reject happy path: PENDING request found → status updated to REJECTED, `releaseReservationInTx` called, `recordEntryInTx` called with `RESERVATION_RELEASE`.
@@ -71,16 +70,15 @@ This feature depends on:
 
 ### Unit Tests — `TimeOffRequestController`
 
-- `approve()` delegates to service and returns the result with HTTP 200.
+- `approve()` delegates to service and propagates the service response / error.
 - `reject()` delegates to service and returns the result with HTTP 200.
 
 ### Integration Tests — `PATCH /time-off-requests/:id/approve`
 
-- Happy path: seeded PENDING request + balance → 200, status APPROVED in DB, `reservedDays` decremented, audit entry with `APPROVAL_DEDUCTION` created.
+- Approval integration behavior is covered by F9.
 - Request not found → 404.
 - Request already APPROVED → 409.
 - Request already REJECTED → 409.
-- With `actorId` in body → audit entry carries the `actorId`.
 
 ### Integration Tests — `PATCH /time-off-requests/:id/reject`
 
@@ -92,7 +90,7 @@ This feature depends on:
 
 ## Out of Scope
 
-- HCM notification on approval (F9)
+- Detailed HCM-backed approval flow (F9)
 - Cancellation (F10)
 - Authentication / authorization — `actorId` is an optional caller-supplied string; no auth middleware is in scope
 - Listing or reading requests (F6)

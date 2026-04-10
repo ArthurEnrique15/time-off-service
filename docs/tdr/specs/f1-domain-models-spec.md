@@ -43,7 +43,7 @@ downstream features.
   `CANCELLED`.
 - The schema shall use a `String` field for `BalanceAuditEntry.reason` with
   documented allowed values: `RESERVATION`, `RESERVATION_RELEASE`,
-  `APPROVAL_DEDUCTION`, `CANCELLATION_RESTORE`, `BATCH_SYNC`,
+  `APPROVAL_DEDUCTION`, `CANCELLATION_RESTORE`, `BATCH_SYNC`, `HCM_SYNC`,
   `MANUAL_ADJUSTMENT`.
 
 ### Schema — Balance Model

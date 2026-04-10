@@ -64,46 +64,29 @@ export class TimeOffRequestService {
       throw new InsufficientBalanceError(employeeId, locationId, daysRequested, balance.availableDays);
     }
 
-    let hcmRequestId: string | undefined;
+    return this.prismaService.$transaction(async (tx) => {
+      await this.balanceService.reserveInTx(tx, employeeId, locationId, daysRequested);
 
-    try {
-      const hcmResult = await this.hcmClient.submitTimeOff({ employeeId, locationId, startDate, endDate });
-
-      if (hcmResult.isFailure()) {
-        this.throwHcmError(hcmResult.value);
-      }
-
-      hcmRequestId = hcmResult.value.id;
-
-      return await this.prismaService.$transaction(async (tx) => {
-        await this.balanceService.reserveInTx(tx, employeeId, locationId, daysRequested);
-
-        const request = await tx.timeOffRequest.create({
-          data: {
-            employeeId,
-            locationId,
-            startDate: parseISO(startDate),
-            endDate: parseISO(endDate),
-            status: 'PENDING',
-            hcmRequestId,
-          },
-        });
-
-        await this.balanceAuditService.recordEntryInTx(tx, {
-          balanceId: balance.id,
-          delta: -daysRequested,
-          reason: 'RESERVATION',
-          requestId: request.id,
-        });
-
-        return request;
+      const request = await tx.timeOffRequest.create({
+        data: {
+          employeeId,
+          locationId,
+          startDate: parseISO(startDate),
+          endDate: parseISO(endDate),
+          status: 'PENDING',
+          hcmRequestId: null,
+        },
       });
-    } catch (err) {
-      if (hcmRequestId) {
-        await this.hcmClient.cancelTimeOff(hcmRequestId).catch(() => {});
-      }
-      throw err;
-    }
+
+      await this.balanceAuditService.recordEntryInTx(tx, {
+        balanceId: balance.id,
+        delta: -daysRequested,
+        reason: 'RESERVATION',
+        requestId: request.id,
+      });
+
+      return request;
+    });
   }
 
   async findById(id: string): Promise<TimeOffRequest | null> {
@@ -157,21 +140,87 @@ export class TimeOffRequestService {
     }
 
     const daysRequested = differenceInCalendarDays(request.endDate, request.startDate) + 1;
+    const balance = await this.balanceService.findByEmployeeAndLocation(request.employeeId, request.locationId);
+
+    if (!balance) {
+      throw new NotFoundException(
+        `Balance not found for employee ${request.employeeId} at location ${request.locationId}`,
+      );
+    }
+
+    const hcmResult = await this.hcmClient.submitTimeOff({
+      employeeId: request.employeeId,
+      locationId: request.locationId,
+      startDate: this.toHcmDate(request.startDate),
+      endDate: this.toHcmDate(request.endDate),
+    });
+
+    if (hcmResult.isFailure()) {
+      if (hcmResult.value.code === 'UNKNOWN') {
+        await this.balanceAuditService.recordEntry({
+          balanceId: balance.id,
+          delta: 0,
+          reason: 'HCM_SYNC',
+          requestId: id,
+          actorId,
+          reference: this.buildHcmSyncFailureReference(hcmResult.value.code),
+        });
+        this.throwHcmError(hcmResult.value);
+      }
+
+      await this.prismaService.$transaction(async (tx) => {
+        await tx.timeOffRequest.update({ where: { id }, data: { status: 'REJECTED', hcmRequestId: null } });
+        const releasedBalance = await this.balanceService.releaseReservationInTx(
+          tx,
+          request.employeeId,
+          request.locationId,
+          daysRequested,
+        );
+        await this.balanceAuditService.recordEntryInTx(tx, {
+          balanceId: releasedBalance.id,
+          delta: daysRequested,
+          reason: 'RESERVATION_RELEASE',
+          requestId: id,
+          actorId,
+        });
+        await this.balanceAuditService.recordEntryInTx(tx, {
+          balanceId: releasedBalance.id,
+          delta: 0,
+          reason: 'HCM_SYNC',
+          requestId: id,
+          actorId,
+          reference: this.buildHcmSyncFailureReference(hcmResult.value.code),
+        });
+      });
+
+      this.throwHcmError(hcmResult.value);
+    }
 
     return this.prismaService.$transaction(async (tx) => {
-      const updatedRequest = await tx.timeOffRequest.update({ where: { id }, data: { status: 'APPROVED' } });
-      const balance = await this.balanceService.confirmDeductionInTx(
+      const updatedRequest = await tx.timeOffRequest.update({
+        where: { id },
+        data: { status: 'APPROVED', hcmRequestId: hcmResult.value.id },
+      });
+      const confirmedBalance = await this.balanceService.confirmDeductionInTx(
         tx,
         request.employeeId,
         request.locationId,
         daysRequested,
       );
       await this.balanceAuditService.recordEntryInTx(tx, {
-        balanceId: balance.id,
+        balanceId: confirmedBalance.id,
         delta: -daysRequested,
         reason: 'APPROVAL_DEDUCTION',
         requestId: id,
         actorId,
+      });
+      await this.balanceAuditService.recordEntryInTx(tx, {
+        balanceId: confirmedBalance.id,
+        delta: 0,
+        reason: 'HCM_SYNC',
+        requestId: id,
+        actorId,
+        reference: this.buildHcmSyncSuccessReference(hcmResult.value.id),
       });
       return updatedRequest;
     });
@@ -218,5 +267,17 @@ export class TimeOffRequestService {
       default:
         throw new ServiceUnavailableException('HCM service is unavailable');
     }
+  }
+
+  private buildHcmSyncSuccessReference(hcmRequestId: string): string {
+    return `operation=approve outcome=success hcmRequestId=${hcmRequestId}`;
+  }
+
+  private buildHcmSyncFailureReference(code: HcmError['code']): string {
+    return `operation=approve outcome=failure code=${code}`;
+  }
+
+  private toHcmDate(date: Date): string {
+    return date.toISOString().slice(0, 10);
   }
 }

@@ -32,7 +32,7 @@ application-layer service and read endpoint on top of it.
   and `actorId` fields, with `createdAt` set automatically.
 - The system shall validate that the `reason` value is one of the allowed constants:
   `RESERVATION`, `RESERVATION_RELEASE`, `APPROVAL_DEDUCTION`, `CANCELLATION_RESTORE`,
-  `BATCH_SYNC`, `MANUAL_ADJUSTMENT`.
+  `BATCH_SYNC`, `HCM_SYNC`, `MANUAL_ADJUSTMENT`.
 - If the `reason` value is not one of the allowed constants, the system shall throw
   an error and not create the entry.
 
