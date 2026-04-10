@@ -34,6 +34,8 @@
 - F4 HCM client plan: [f4-hcm-client-plan.md](./feature-plans/f4-hcm-client-plan.md)
 - F5 time-off request create spec: [f5-time-off-request-create-spec.md](./specs/f5-time-off-request-create-spec.md)
 - F5 time-off request create plan: [f5-time-off-request-create-plan.md](./feature-plans/f5-time-off-request-create-plan.md)
+- F6 time-off request read/list spec: [f6-time-off-request-read-list-spec.md](./specs/f6-time-off-request-read-list-spec.md)
+- F6 time-off request read/list plan: [f6-time-off-request-read-list-plan.md](./feature-plans/f6-time-off-request-read-list-plan.md)
 
 ## Pending Product Definitions
 - Canonical terminology for balances, requests, adjustments, and sync events
@@ -125,3 +127,20 @@ that interact with the HCM or use shared infrastructure.
 - `parseISO` ensures consistent parsing of ISO-8601 strings regardless of runtime locale.
 - Tree-shakeable: only imported functions are bundled, keeping the production build lean.
 - Consistent with modern NestJS/TypeScript ecosystem conventions.
+
+## F6 Design Decisions
+
+Resolved during F6 brainstorming. These are authoritative for all downstream features
+that read time-off requests.
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Pagination | Offset/limit (`page`, `limit`) | Employees accumulate many requests; consistent with F3 |
+| Extra filters | None beyond `employeeId` + optional `status` | YAGNI |
+| Default sort | Descending by `createdAt` | Consistent with F3; most useful default |
+| Invalid status value | HTTP 400 | Consistent with F3 invalid-reason behavior |
+| Missing `employeeId` on list | HTTP 400 | Consistent with F2 balance list |
+| Single request not found | HTTP 404 | Standard REST |
+| Inline validation | In controller, no class-validator DTOs | Matches every existing controller |
+| `page`/`limit` out of range | Default / cap (1..100) | Matches F3 behavior |
+| Paginated response shape | `{ data, pagination: { page, limit, total, totalPages } }` | Consistent with F3 envelope |

@@ -23,20 +23,10 @@ describe('time-off module assembly', () => {
   });
 
   it('declares the expected providers', () => {
-    expect(timeOffModuleProviders).toEqual([
-      BalanceService,
-      HealthService,
-      BalanceAuditService,
-      TimeOffRequestService,
-    ]);
+    expect(timeOffModuleProviders).toEqual([BalanceService, HealthService, BalanceAuditService, TimeOffRequestService]);
   });
 
   it('declares the expected controllers', () => {
-    expect(timeOffModuleControllers).toEqual([
-      BalanceController,
-      HealthController,
-      BalanceAuditController,
-      TimeOffRequestController,
-    ]);
+    expect(timeOffModuleControllers).toEqual([BalanceController, HealthController, BalanceAuditController, TimeOffRequestController]);
   });
 });
