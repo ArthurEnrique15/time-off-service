@@ -265,10 +265,6 @@ describe('BalanceService', () => {
   });
 
   describe('upsertBalance', () => {
-    beforeEach(() => {
-      mockPrismaService.$transaction.mockImplementation((cb: (tx: typeof mockPrismaService) => unknown) => cb(mockPrismaService));
-    });
-
     it('creates a new balance when the pair does not exist, returning wasCreated true and previousAvailableDays 0', async () => {
       const createdBalance = { ...mockBalance, availableDays: 15 };
       mockPrismaService.balance.findUnique.mockResolvedValue(null);
